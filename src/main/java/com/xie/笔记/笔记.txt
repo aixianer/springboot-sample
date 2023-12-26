@@ -1,0 +1,175 @@
+5、如何配置数据源
+    （1）单个数据源
+        springboot:
+            //pom
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter-jdbc</artifactId>
+            </dependency>
+            <dependency>
+                <groupId>com.h2database</groupId>
+                <artifactId>h2</artifactId>
+                <scope>runtime</scope>
+            </dependency>
+            //java
+            @Autowired
+            private DataSource dataSource;
+            //properties
+            spring.datasource.url=jdbc:h2:mem:testdb
+            spring.datasource.username=sa
+            spring.datasource.password=
+            spring.datasource.hikari.maximumPoolSize=5
+            spring.datasource.hikari.minimumIdle=5
+            spring.datasource.hikari.idleTimeout=600000
+            spring.datasource.hikari.connectionTimeout=30000
+            spring.datasource.hikari.maxLifetime=1800000
+
+
+        spring中配置数据源：
+        方式1：
+            import javax.sql.DataSource;
+            @Autowired
+            private DataSource dataSource;
+            @Bean(destroyMethod = "close")
+            public DataSource dataSource() throws Exception {
+                Properties properties = new Properties();
+                properties.setProperty("driverClassName", "org.h2.Driver");
+                properties.setProperty("url", "jdbc:h2:mem:testdb");
+                properties.setProperty("username", "sa");
+                return BasicDataSourceFactory.createDataSource(properties);
+            }
+（2）多个数据源
+    1、屏蔽自带的datasource
+        @SpringBootApplication(exclude = { DataSourceAutoConfiguration.class,
+                DataSourceTransactionManagerAutoConfiguration.class,
+                JdbcTemplateAutoConfiguration.class})
+    2、自定义datasource和trxbean
+         @Bean
+            public DataSource fooDataSource() {
+                DataSourceProperties dataSourceProperties = fooDataSourceProperties();
+                log.info("foo datasource: {}", dataSourceProperties.getUrl());
+                return dataSourceProperties.initializeDataSourceBuilder().build();
+            }
+
+            @Bean
+            @Resource
+            public PlatformTransactionManager fooTxManager(DataSource fooDataSource) {
+                return new DataSourceTransactionManager(fooDataSource);
+            }
+
+            @Bean
+            @ConfigurationProperties("bar.datasource")
+            public DataSourceProperties barDataSourceProperties() {
+                return new DataSourceProperties();
+            }
+
+            @Bean
+            public DataSource barDataSource() {
+                DataSourceProperties dataSourceProperties = barDataSourceProperties();
+                log.info("bar datasource: {}", dataSourceProperties.getUrl());
+                return dataSourceProperties.initializeDataSourceBuilder().build();
+            }
+
+            @Bean
+            @Resource
+            public PlatformTransactionManager barTxManager(DataSource barDataSource) {
+                return new DataSourceTransactionManager(barDataSource);
+            }
+    3、配置文件
+        foo.datasource.url=jdbc:h2:mem:foo
+        foo.datasource.username=sa
+        foo.datasource.password=
+        bar.datasource.url=jdbc:h2:mem:bar
+        bar.datasource.username=sa
+        bar.datasource.password=
+7、HikariCP
+springboot2
+    默认使用了HikariCP
+    配置spring.datasource.hikari.*
+springboot1
+    在pom文件中，默认使用了tomcat，如果改动需要移除tomcat依赖
+    将spring.datasource.type=com.zaxxer.hikari.HikariDataSource
+
+8、Durid
+    优点：
+        详情的监控
+        ExceptionSorter，针对主流数据库返回码都支持
+        SQL防注入
+        内置加密支持
+        众多扩展点，方便进行定制
+    配置方式：
+        （1）Spring的bean当中配置DuridDataSource
+        （2）springboot使用durid-spring-boot-starter;
+            配置文件中配置spring.datasource.durid.*
+    如何选择连接池：
+        可靠性，性能，功能，监控；可运维性，可扩展性，其他；
+9、spring jdbc访问数据库
+    主要包含：
+        core,JdbcTemplate等相关核心接口和类
+        datasiource，数据源相关的辅助类
+        object，将基本的jdbc操纵封装成对象
+        support,错误码等其他辅助工具
+    常用bean注解：
+        @Componment:通用的注解，定义通用的bean
+        @Respository:dao，数据库相关的操作
+        @Service：一些内部的服务
+        @Controller：spring mvc
+            @RestController
+    JdbcTemplate
+        query
+        queryForObject
+        queryForList
+        update:更新删除
+        execute
+    代码
+        JdbcTemplate
+        NamedParameterJdbcTemplate
+
+10、Spring事务抽象
+    事务抽象的核心接口
+        PlatformTransacionManager
+            DataSourceTransactionManager
+            d
+            JtdTransactionManager
+        TransactionDefinition
+            Propagation
+            Isolation
+            Timeout
+            Read-only satatus
+
+    事务传播特性，7种
+        requried:当前有事务就用当前的，没有就用新的
+        supports:事务可有可无，不是必须的
+        mandatory:当前一定要有事务，没有就抛出异常
+        requires_new：无论是否有，都起一个新事务
+        not_supported:不支持事务，按照非事务方式运行
+        never:不支持事务，如果有就抛出异常
+        nested:里面回滚，不影响大事务
+    事务隔离特性（取决于数据库）：
+        串行
+        可重复读
+        不可重复度
+        脏读（读未提交）
+11、Spring事务抽象下
+    编程式事务
+        TransactionTemplate
+        PlatFromTransactionManager
+            传入TransacrtionDefinition
+    声明式事务
+        本质上式通过AOP增强了类的功能
+        Spring的AOP本质上就是为类做了一个代理
+            看似在调用给自己的类，实际上式用的增强后的代理类
+            访问增强后的代理类的方法，而废直接访问自身的方法
+        xml方式
+            @EnableTransactionmanagerManagement
+
+        @Transactional
+            transactionManager
+            propagation
+12、Spring的JDBC异常抽象
+    Spring会将数据操作的异常转为DataAccessException
+    通过SQLErrorCodeSQLExcetpionTranslator
+    ErrorCode定义
+        org.springframework.jdbc.sql-error-codex.xml
+        classpath下可以定义sql-error-codex.xml覆盖jdbc包下的
+13、答疑1
