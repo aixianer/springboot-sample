@@ -172,4 +172,48 @@ springboot1
     ErrorCode定义
         org.springframework.jdbc.sql-error-codex.xml
         classpath下可以定义sql-error-codex.xml覆盖jdbc包下的
-13、答疑1
+
+20、通过MyBatis操作数据库
+    认识MyBatis
+        一款优秀的持久层框架
+        支持定制的SQL、存储过程和高级映射
+    在Spring中使用MyBatis
+        MyBatis Spring Adapter
+        MyBatis Spring-Boot-Starter
+    定制sql支持性较好，如果dba要求严格，可以考虑使用MyBatis
+    简单配置
+        //设置映射文件
+        • mybatis.mapper-locations = classpath*:mapper/**/*.xml
+        • mybatis.type-aliases-package = 类型别名的包名
+        //类型转换使用的辅助类
+        • mybatis.type-handlers-package = TypeHandler扫描包名
+        //下划线转驼峰规则
+        • mybatis.configuration.map-underscore-to-camel-case = true
+    Mapper的定义和扫描
+        @MapperScan配置扫描配置
+        @Mapper定义接口
+        映射的定义--XML与注解
+        @Mapper,@Insert,@Options,@Select
+    BaseTypeHandler
+        继承此接口可实现类型转换
+        mybatis.type-handlers-package=
+    一些代码：
+        @Mapper
+        public interface CoffeeMapper {
+            @Insert("insert into t_coffee (name, price, create_time, update_time)"
+                    + "values (#{name}, #{price}, now(), now())")
+            @Options(useGeneratedKeys = true)
+            int save(Coffee coffee);
+
+            @Select("select * from t_coffee where id = #{id}")
+            @Results({
+                    @Result(id = true, column = "id", property = "id"),
+                    @Result(column = "create_time", property = "createTime"),
+                    // map-underscore-to-camel-case = true 可以实现一样的效果
+                    // @Result(column = "update_time", property = "updateTime"),
+            })
+            Coffee findById(@Param("id") Long id);
+        }
+    分页工具：
+
+26、在Spring中访问redis
