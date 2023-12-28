@@ -6,3 +6,40 @@
     （5）预分配内存：Redis在初始化时会预先分配一定量的内存空间，避免了频繁的内存分配和释放过程，提高了性能。
 二、Redis为什么使用单线程
     官方回复：“Redis的性能瓶颈通常不在CPU上，而是其他因素（如磁盘I/O和网络请求等）限制了系统的性能。”
+
+三、集群实操
+1、主从
+（1）master（1）
+    配置文件
+    1)打开配置文件把下面对应的注释掉
+    bind 127.0.0.1
+    2)保护模式
+    protected-mode no
+    3)Redis默认不是以守护进程的方式运行，可以通过该配置项修改，使用yes启用守护进程，设置为no
+    daemonize no
+    4）设置密码
+    requirepass 12345678
+    4)./redis-server ../redis.conf & 启动
+（2）从服务器（2）
+    slaveof 10.0.10.7 6379
+    # 从redis2.6开始，从节点默认是只读的
+    slave-read-only yes
+    # 假设主节点有登录密码
+    masterauth 12345678
+2、哨兵
+哨兵故障转移失败日志：
+2122:X 28 Dec 2023 06:42:00.395 * Sentinel new configuration saved on disk
+12122:X 28 Dec 2023 06:42:28.384 # +sdown slave 10.0.10.13:6379 10.0.10.13 6379 @ mymaster 10.0.10.7 6379
+12122:X 28 Dec 2023 06:42:28.384 # +sdown slave 10.0.10.9:6379 10.0.10.9 6379 @ mymaster 10.0.10.7 6379
+12122:X 28 Dec 2023 06:43:22.039 # +sdown master mymaster 10.0.10.7 6379
+12122:X 28 Dec 2023 06:43:22.172 * Sentinel new configuration saved on disk
+12122:X 28 Dec 2023 06:43:22.172 # +new-epoch 1
+12122:X 28 Dec 2023 06:43:22.172 * Sentinel new configuration saved on disk
+12122:X 28 Dec 2023 06:43:22.172 # +vote-for-leader 2a17815858f929840947e84541284b9ffa450c59 1
+12122:X 28 Dec 2023 06:43:23.156 # +odown master mymaster 10.0.10.7 6379 #quorum 3/2
+12122:X 28 Dec 2023 06:43:23.156 # Next failover delay: I will not start a failover before Thu Dec 28 06:49:22 2023
+12122:X 28 Dec 2023 06:49:22.471 * Sentinel new configuration saved on disk
+12122:X 28 Dec 2023 06:49:22.471 # +new-epoch 2
+12122:X 28 Dec 2023 06:49:22.472 * Sentinel new configuration saved on disk
+12122:X 28 Dec 2023 06:49:22.472 # +vote-for-leader 2a17815858f929840947e84541284b9ffa450c59 2
+12122:X 28 Dec 2023 06:49:22.475 # Next failover delay: I will not start a failover before Thu Dec 28 06:55:22 2023
