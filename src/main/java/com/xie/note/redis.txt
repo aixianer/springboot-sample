@@ -7,6 +7,13 @@
 二、Redis为什么使用单线程
     官方回复：“Redis的性能瓶颈通常不在CPU上，而是其他因素（如磁盘I/O和网络请求等）限制了系统的性能。”
 
+三、主从模式
+    redis提供了复制(replication)功能，当一台redis数据库中的数据发生了变化，这个变化会被自动的同步到其他的redis机器上去。
+    redis多机器部署时，这些机器节点会被分成两类，一类是主节点（master节点），一类是从节点（slave节点）。
+    一般主节点可以进行读、写操作，而从节点只能进行读操作。
+    同时由于主节点可以写，数据会发生变化，当主节点的数据发生变化时，会将变化的数据同步给从节点，这样从节点的数据就可以和主节点的数据保持一致了。
+
+
 三、集群实操
 1、主从
 （1）master（1）
@@ -19,27 +26,53 @@
     daemonize no
     4）设置密码
     requirepass 12345678
-    4)./redis-server ../redis.conf & 启动
+    5)./redis-server ../redis.conf & 启动
 （2）从服务器（2）
     slaveof 10.0.10.7 6379
     # 从redis2.6开始，从节点默认是只读的
     slave-read-only yes
     # 假设主节点有登录密码
     masterauth 12345678
+    #设置密码
+    requirepass 12345678
 2、哨兵
-哨兵故障转移失败日志：
-2122:X 28 Dec 2023 06:42:00.395 * Sentinel new configuration saved on disk
-12122:X 28 Dec 2023 06:42:28.384 # +sdown slave 10.0.10.13:6379 10.0.10.13 6379 @ mymaster 10.0.10.7 6379
-12122:X 28 Dec 2023 06:42:28.384 # +sdown slave 10.0.10.9:6379 10.0.10.9 6379 @ mymaster 10.0.10.7 6379
-12122:X 28 Dec 2023 06:43:22.039 # +sdown master mymaster 10.0.10.7 6379
-12122:X 28 Dec 2023 06:43:22.172 * Sentinel new configuration saved on disk
-12122:X 28 Dec 2023 06:43:22.172 # +new-epoch 1
-12122:X 28 Dec 2023 06:43:22.172 * Sentinel new configuration saved on disk
-12122:X 28 Dec 2023 06:43:22.172 # +vote-for-leader 2a17815858f929840947e84541284b9ffa450c59 1
-12122:X 28 Dec 2023 06:43:23.156 # +odown master mymaster 10.0.10.7 6379 #quorum 3/2
-12122:X 28 Dec 2023 06:43:23.156 # Next failover delay: I will not start a failover before Thu Dec 28 06:49:22 2023
-12122:X 28 Dec 2023 06:49:22.471 * Sentinel new configuration saved on disk
-12122:X 28 Dec 2023 06:49:22.471 # +new-epoch 2
-12122:X 28 Dec 2023 06:49:22.472 * Sentinel new configuration saved on disk
-12122:X 28 Dec 2023 06:49:22.472 # +vote-for-leader 2a17815858f929840947e84541284b9ffa450c59 2
-12122:X 28 Dec 2023 06:49:22.475 # Next failover delay: I will not start a failover before Thu Dec 28 06:55:22 2023
+    redis.conf
+        公共：
+            # 需要不同服务器的节点连通，就不能设置为 127.0.0.1
+            bind 0.0.0.0
+            # 需要不同服务器的节点连通，这个就要设置为 no
+            protected-mode no
+            # 设置后台运行redis
+            daemonize yes
+            # 端口
+            port 6379
+            # 密码
+            requirepass 12345678
+            # LOG文件
+            logfile /var/run/redis_6379.log
+            # 主节点认证，主从节点均需要配置
+            masterauth 12345678
+        从节点
+            replicaof 10.0.10.7 6379
+    sentinel.conf
+        # 保护模式默认关闭
+        protected-mode no
+        # 后台运行
+        daemonize yes
+        # log
+        logfile /var/run/redis-sentinel.log
+        # 监控Redis主服务
+        sentinel monitor mymaster 10.0.10.7 6379 2
+        # 配置认证密码
+        sentinel auth-pass mymaster 12345678
+        # S_DOWN时间
+        sentinel down-after-milliseconds redis-master 30000
+        # 设置在故障转移后可以重新配置以同时使用新主服务器的副本数
+        sentinel parallel-syncs redis-master 1
+        # 故障转移超时时间
+        sentinel failover-timeout redis-master 180000
+    切换操作
+        停掉master，会精选出新的master
+        修改旧master的redis.conf指向新的master
+        启动旧master
+3、cluster
