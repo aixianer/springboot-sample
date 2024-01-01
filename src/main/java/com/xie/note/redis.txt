@@ -76,3 +76,57 @@
         修改旧master的redis.conf指向新的master
         启动旧master
 3、cluster
+    redis.conf
+        # 需要不同服务器的节点连通，就不能设置为 127.0.0.1
+        bind 10.0.10.7（固定IP）
+        # 需要不同服务器的节点连通，这个就要设置为 no
+        protected-mode no
+        # 设置后台运行redis
+        daemonize yes
+        # 端口
+        port 6379
+        # 密码
+        requirepass 12345678
+        # 主节点认证密码
+        masterauth 123456789
+        # redis日志
+        logfile "redislog6379.log"
+        #append
+        appendfilename "appendonly.aof"
+         注意：
+            启动之前需要清空所有key;
+            清空pid:/var/run/redis_*.pid
+            清空node配置:nodes-*.conf
+            清空dump.rdb文件
+    防火墙
+        默认集群端口是10000+redis端口
+        需要将16379和16380在防火墙放开
+
+    执行：redis-cli -a 123456789 --cluster create --cluster-replicas 1 10.0.10.7:6379 10.0.10.7:6380 10.0.10.9:6379 10.0.10.9:6380 10.0.10.13:6379 10.0.10.13:6380
+    会出现提示：
+        >>> Performing Cluster Check (using node 10.0.10.7:6379)
+        M: 316e515569a6986703d4b0ae9e2593ba08301553 10.0.10.7:6379
+           slots:[0-5460] (5461 slots) master
+           1 additional replica(s)
+        S: 86fa282c3d82ab28e9b1c8337d7fc34a05f82c72 10.0.10.13:6380
+           slots: (0 slots) slave
+           replicates 4cd4bdb52c0ec9787429e695dca477b94f3a4e95
+        M: 30d275400d3b96feb3141b5a3535c6eb9ab5f968 10.0.10.13:6379
+           slots:[10923-16383] (5461 slots) master
+           1 additional replica(s)
+        S: be8a8f97444e4f65bcdc53ca1f88091f8e0f2d80 10.0.10.9:6380
+           slots: (0 slots) slave
+           replicates 316e515569a6986703d4b0ae9e2593ba08301553
+        M: 4cd4bdb52c0ec9787429e695dca477b94f3a4e95 10.0.10.9:6379
+           slots:[5461-10922] (5462 slots) master
+           1 additional replica(s)
+        S: 9deea62693fe104172cf5ac9f36b8be02c7e778f 10.0.10.7:6380
+           slots: (0 slots) slave
+           replicates 30d275400d3b96feb3141b5a3535c6eb9ab5f968
+        [OK] All nodes agree about slots configuration.
+        >>> Check for open slots...
+        >>> Check slots coverage...
+        [OK] All 16384 slots covered.
+4、问题：
+    （1）springboot的redisTemplate和lettuce如何结合，结合的原理以及集群如何配置
+    （2）redis的基础知识，如如何存储对象
