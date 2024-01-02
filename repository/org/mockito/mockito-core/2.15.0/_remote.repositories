@@ -1,0 +1,5 @@
+#NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+#Mon Jan 01 22:41:23 CST 2024
+mockito-core-2.15.0-sources.jar>alimaven=
+mockito-core-2.15.0.jar>alimaven=
+mockito-core-2.15.0.pom>alimaven=

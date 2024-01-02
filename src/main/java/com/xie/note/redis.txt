@@ -130,3 +130,4 @@
 4、问题：
     （1）springboot的redisTemplate和lettuce如何结合，结合的原理以及集群如何配置
     （2）redis的基础知识，如如何存储对象
+    （3）spring中相关注解的应用，@EnableCaching、@CacheConfig(cacheNames="CoffeeCache"),e@Cacheable
