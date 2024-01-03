@@ -342,9 +342,12 @@ springboot1
         ResponseEntity
             ResponseEntity 设置响应到浏览器的响应报文
             ResponseEntity类型用在控制器方法的返回值，返回的ResponseEntity就是响应到浏览器的响应报文。
-43、如何定义处理方法下
-    类型转换
-        WebMvcConverter
+
+43、如何定义处理方法下（没看懂，需要刷视频）
+    类型转换WebMvcConverter
+        Spring Boot 在 WebMvcAutoConfiguration 中实现了⼀个
+        添加⾃定义的 Converter
+        添加⾃定义的 Formatter
     定义校验
         通过 Validator 对绑定结果进⾏校验
             Hibernate Validator
