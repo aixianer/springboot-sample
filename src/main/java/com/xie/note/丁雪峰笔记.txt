@@ -217,3 +217,143 @@ springboot1
     分页工具：
 
 26、在Spring中访问redis
+
+39、编写第一个Spring Mvc
+    DispatchServlet:所有请求的一个入口
+        Controller
+        xxxResolver
+            ViewResolver
+            HandlerExceptionResolver
+            MultipartResolver
+        HandlerMappingL映射处理
+    常用注解：
+        @Controller：定义控制器
+            @RestController：结合了controller和responseBody
+        @RequestMapping：我这个controller要处理哪一些请求
+            @GetMapping,@PostMapping
+            @DeleteMapping,@PutMapping
+        @RequestBody：请求的报文体
+        @ResponseBody：响应的报文体
+        @ResponseStatus：指定请求返回http响应码
+
+40、Spring应用上下文
+    依赖注入也是通过SpringContext来实现的，配置文件或者配置获取组件间的以来信息，applicationContext负责注入
+    上下文中常用的接口和实现
+    BeanFactory
+        DefaultListableBeanFactory
+    ApplicationContext
+        ClassPathXmlApplicationContext：通过classpath下的xml配置文件
+        FileSystemXmlApplicationContext：在文件系统中寻找xml文件
+        AnnotationConfigApplicationContext：从注解中获取
+    WebApplicationContext
+
+    一般情况下我们不会直接使用BeanFactory，我们一般都是通过使用ApplicationContext的一些实现类；
+    里面会对BeanPostProcessor和BeanFactoryPostProcessor的一些自动的注册的功能（springboot里会详细说明）
+
+    Web上下文的层次关系：
+    DispatcherServlet
+    Servlet WebApplicationContext：存放spring mvc相关的bean
+        Controllers
+        ViewResolver
+        HandlerMapping
+    Root WebAppitlicationContext
+        Services
+        Repositories
+    Servlet会继承Root，在servlet当中找不到某个bean时候它会到root中做寻找；
+    如果我定义了AOP拦截在servlet，但是拦截的目标出现在root里，增强是否会生效
+    xml:
+        root:ContextLoaderListener
+            service,dao相关
+        servlet:DispatchServlet
+    代码方式（Configuration）：
+        RootConfig.class
+        App1Config.class
+    示例：context-hierarchy-demo
+        @EnableAspectJAutoProxy？
+        @ComponentScan
+    如果是希望对底层的那些bean做增强，增强AOP的这些配置配置在底层上下文当中；
+    如果是希望对上层，那么就配置在上层；
+    如果是通用的，两个上下文当中都开启AOP的增强，但是把Aspect定义在Root的Application
+    ？？？？
+
+41、理解请求的处理机制
+    1、个请求的大致处理流程
+    （1）绑定一些attribute
+        WebApplicationContext/LocaleResolver/ThemeResolver
+    （2）处理Multipart
+        如果是，将请求转为MultipartHttpServlet
+    （3）Handler处理
+        如果找到Handler，执行Controller及前后置处理器逻辑
+    （4）处理返回的Model，呈现视图
+
+42、如何定义处理方法上
+    1、定义映射关系
+        @Controller
+            标志该层为表现层或者控制层；具有component的基础含义，被spring管理，当成bean注入到spring容器中；可以让该类中的方法返回String，该String默认就是view-name
+            @RestController: @Controller，@ResponseBody
+        @RequestMapping
+            path(value): 指定请求的实际访问地址，默认@RequestMapping("url")的值url即为value的值
+            method:请求的method的类型，主要有：GET、POST、DELETE、PUT
+            params：指定request中必须包含某些参数值，包含才让该方法处理请求
+            headers：指定request中必须包含某些指定的header值，包含才能让该方法处理请求。
+            consumes：指定处理请求的提交内容类型（Content-Type），例如：application/json, text/html;
+            produces：指定返回的内容类型，当且仅当request请求头中的(Accept)类型中包含该指定类型才返回；
+        一些快捷方式
+            @GetMapping：@RequestMapping(method = RequestMethod.GET)
+            @PostMapping：@RequestMapping(method = RequestMethod.POST)
+            @PutMapping：@RequestMapping(method = RequestMethod.PUT)
+            @DeleteMapping：@RequestMapping(method = RequestMethod.DELETE)
+            @PatchMapping：@RequestMapping(method = RequestMethod.PATCH)
+    2、请求相关
+        @RequestParam：
+            常用来处理简单类型的绑定，通过request.getParameter() 获取的String可直接转换为简单类型的情况
+            用来处理Content-Type: 为application/x-www-form-urlencoded编码的内容，提交方式GET、POST；
+            defaultValue 表示设置默认值，required通过boolean设置是否是必须要传入的参数，value 值表示接受的传入的参数类型。
+        @RequestBody：
+            该注解常用来处理Content-Type: 不是application/x-www-form-urlencoded编码的内容，例如application/json, application/xml等；
+            它是通过使用HandlerAdapter 配置的HttpMessageConverters来解析post data body，然后绑定到相应的bean上的。
+            (使用FormHttpMessageConverter可以处理application/x-www-form-urlencoded)
+        @RequestHeader
+            可以把Request请求header部分的值绑定到方法的参数上
+            public void displayHeaderInfo(@RequestHeader("Accept-Encoding") String encoding, @RequestHeader("Keep-Alive") long keepAlive)
+        @CookieValue
+            绑定 cookie 的值到 Controller 方法参数
+            public String testCookieValue(@CookieValue ( "hello" ) String cookieValue, @CookieValue String hello)
+        @PathVariable：
+            用于将请求URL中的模板变量映射到功能处理方法的参数上，即取出uri模板中的变量作为参数
+
+        RequestEntity
+            表示完整的请求报文（用的少，几乎不用）
+            其中getHeaders()获取请求报文的请求头信息
+            其中getBody()获取请求报文的请求体信息
+    3、返回相关
+        @ResponseBody：
+            将Controller的方法返回的对象，通过适当的HttpMessageConverter转换为指定格式后，写入到Response对象的body数据区。
+        @ResponseStatus
+            指定控制器方法抛出异常时的 HTTP 状态码
+            （1）和@RequestMapping配合
+                如果不使用，默认返回200，表示浏览器中共南昌渲染试图
+                如果使用，不设定200，浏览器仍可正常渲染试图，但是可回调error函数
+            （2）和@ExceptionHandler配合
+                和1区别不大
+            （3）加在自定义异常上面
+                如果不加，在代码中直接抛出该自定义异常，会以500的HTTP状态码响应到浏览器
+                如果加，在代码中直接抛出该自定义异常，会以指定的HTTP状态码和指定的reason响应到浏览器
+        ResponseEntity
+            ResponseEntity 设置响应到浏览器的响应报文
+            ResponseEntity类型用在控制器方法的返回值，返回的ResponseEntity就是响应到浏览器的响应报文。
+43、如何定义处理方法下
+    类型转换
+        WebMvcConverter
+    定义校验
+        通过 Validator 对绑定结果进⾏校验
+            Hibernate Validator
+        @Valid 注解
+        BindingResult
+    Multipart 上传
+        配置 MultipartResolver
+            Spring Boot ⾃动配置 MultipartAutoConfiguration
+        ⽀持类型 multipart/form-data
+        MultipartFile 类型
+
+
