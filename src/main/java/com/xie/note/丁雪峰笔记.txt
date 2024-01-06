@@ -343,8 +343,8 @@ springboot1
             ResponseEntity 设置响应到浏览器的响应报文
             ResponseEntity类型用在控制器方法的返回值，返回的ResponseEntity就是响应到浏览器的响应报文。
 
-43、如何定义处理方法下（没看懂，需要刷视频）
-    类型转换WebMvcConverter
+43、如何定义处理方法下（没看懂，需要刷视频；例子：more-complex-controller-demo）
+    类型转换WebMvcConverter（MoneyFormatter.java）
         Spring Boot 在 WebMvcAutoConfiguration 中实现了⼀个
         添加⾃定义的 Converter
         添加⾃定义的 Formatter
@@ -353,10 +353,102 @@ springboot1
             Hibernate Validator
         @Valid 注解
         BindingResult
+            public Coffee addCoffee(@Valid NewCoffeeRequest newCoffee,BindingResult result)
     Multipart 上传
         配置 MultipartResolver
             Spring Boot ⾃动配置 MultipartAutoConfiguration
         ⽀持类型 multipart/form-data
         MultipartFile 类型
 
+44、Spring MVC视图解析机制上
+    1、ViewResolver 与 View 接⼝
+        AbstractCachingViewResolver：缓存，抽象的基类
+        UrlBasedViewResolver
+        FreeMarkerViewResolver：freeMarker
+        ContentNegotiatingViewResolver:
+            根据我可以接受的返回类型来选择一个合适的响应，xml、json的
+            把相应的这些请求转给合适的ViewResolver继续做一个处理
+        InternalResourceViewResolver
+            最后的内置的解析器，它是用来处理JSP还有JSTL的
+        这些ViewResolver他们每一个都可以去做一个解析，返回一个View对象，再用View对象做一个呈现
+    2、如何做试图解析
+        initStrategies()
+            initViewResolvers()初始化了对应ViewResolver
+            它会加载spring上下文中的所有的ViewResolvers
+        doDispatch()
+            processDispatchResult()
+                视图名到具体视图的一个解析，解析出之后，做一个视图的呈现
+                如果没有返回视图的话，尝试RequestToViewNameTranslator
+                resolveViewName()解析View对象
+                如果有异常，会做一个异常视图的处理
 
+        初始化DispatcherServlet的时候，会初始化ViewResolver
+
+45、Spring MVC视图解析机制下
+    使⽤ @ResponseBody 的情况
+
+
+        后台直接返回pojo对象，前端直接接收为json对象或者字符串，使⽤注解@ResponseBody，此注解不走视图解析器;
+        当方法上面没有写ResponseBody,底层会将方法的返回值封装为ModelAndView对象。
+
+
+        • 在 HandlerAdapter.handle() 的中完成了 Response 输出
+            • RequestMappingHandlerAdapter.invokeHandlerMethod()
+            • HandlerMethodReturnValueHandlerComposite.handleReturnValue()
+            • RequestResponseBodyMethodProcessor.handleReturnValue()
+    重定向的视图
+        redirect:相当于做了一个http302的跳转，可以认为是客户端发起的重定向的跳转；可能会丢失上一个请i去的request信息
+        forward:服务端发起的，浏览器上不会发现变化
+
+46、Spring MVC中的常用视图（上）di's
+    messageconverter
+
+47、Spring MVC中的常用视图（下）
+
+49、Spring MVC中的异常处理机制
+    核心接口：HandlerExceptionResolver
+    实现类：
+        SimpleMappingExceptionResolver
+        DefaultHandlerExceptionResolver
+        ResponseStatusExceptionResolver
+        ExceptionHandlerExceptionResolver
+
+    异常处理方法：@ExceptionHandler
+    添加位置
+        @Controller/@RestController
+            优先级高
+        @ControllerAdvice/@RestControllerAdvice
+            优先级低
+
+    代码：
+        @ControllerAdvice
+        public class GlobalControllerAdvice {
+            @ExceptionHandler(ValidationException.class)
+            @ResponseStatus(HttpStatus.BAD_REQUEST)
+            public Map<String, String> validationExceptionHandler(ValidationException exception) {
+                Map<String, String> map = new HashMap<>();
+                map.put("message", exception.getMessage());
+                return map;
+            }
+        }
+
+50、Spring当中的切入点
+    （1）核心接口：
+        HandlerInterceptor
+            boolean preHandle();
+                预处理，如权限验证
+            void postHandle();
+                视图呈现前
+            void afterCompletion();
+                视图呈现后
+    （2）针对@ResponseBody和ResponseEntity
+        ResponseBodyAdvice
+    （3）针对异步请求的接口
+        AsyncHandlerInterceptor
+            void afterConcurrentHandlingStarted();
+    （4）拦截器的配置方式
+        常规方法：
+            WebMvcConfigurer.addInterceptors();
+        Spring boot中的配置：
+            创建一个@Configuration的WebMvcConfigurer配置类
+            不能带有@EnableWebMvc（想彻底控制MVC除外）
