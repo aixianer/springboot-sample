@@ -269,8 +269,186 @@ springboot1
         RootConfig.class
         App1Config.class
     示例：context-hierarchy-demo
-        @EnableAspectJAutoProxy？
-        @ComponmentScan
+        @EnableAspectJAutoProxy
+        @ComponentScan
     如果是希望对底层的那些bean做增强，增强AOP的这些配置配置在底层上下文当中；
     如果是希望对上层，那么就配置在上层；
     如果是通用的，两个上下文当中都开启AOP的增强，但是把Aspect定义在Root的Application
+    ？？？？
+
+41、理解请求的处理机制
+    1、个请求的大致处理流程
+    （1）绑定一些attribute
+        WebApplicationContext/LocaleResolver/ThemeResolver
+    （2）处理Multipart
+        如果是，将请求转为MultipartHttpServlet
+    （3）Handler处理
+        如果找到Handler，执行Controller及前后置处理器逻辑
+    （4）处理返回的Model，呈现视图
+
+42、如何定义处理方法上
+    1、定义映射关系
+        @Controller
+            标志该层为表现层或者控制层；具有component的基础含义，被spring管理，当成bean注入到spring容器中；可以让该类中的方法返回String，该String默认就是view-name
+            @RestController: @Controller，@ResponseBody
+        @RequestMapping
+            path(value): 指定请求的实际访问地址，默认@RequestMapping("url")的值url即为value的值
+            method:请求的method的类型，主要有：GET、POST、DELETE、PUT
+            params：指定request中必须包含某些参数值，包含才让该方法处理请求
+            headers：指定request中必须包含某些指定的header值，包含才能让该方法处理请求。
+            consumes：指定处理请求的提交内容类型（Content-Type），例如：application/json, text/html;
+            produces：指定返回的内容类型，当且仅当request请求头中的(Accept)类型中包含该指定类型才返回；
+        一些快捷方式
+            @GetMapping：@RequestMapping(method = RequestMethod.GET)
+            @PostMapping：@RequestMapping(method = RequestMethod.POST)
+            @PutMapping：@RequestMapping(method = RequestMethod.PUT)
+            @DeleteMapping：@RequestMapping(method = RequestMethod.DELETE)
+            @PatchMapping：@RequestMapping(method = RequestMethod.PATCH)
+    2、请求相关
+        @RequestParam：
+            常用来处理简单类型的绑定，通过request.getParameter() 获取的String可直接转换为简单类型的情况
+            用来处理Content-Type: 为application/x-www-form-urlencoded编码的内容，提交方式GET、POST；
+            defaultValue 表示设置默认值，required通过boolean设置是否是必须要传入的参数，value 值表示接受的传入的参数类型。
+        @RequestBody：
+            该注解常用来处理Content-Type: 不是application/x-www-form-urlencoded编码的内容，例如application/json, application/xml等；
+            它是通过使用HandlerAdapter 配置的HttpMessageConverters来解析post data body，然后绑定到相应的bean上的。
+            (使用FormHttpMessageConverter可以处理application/x-www-form-urlencoded)
+        @RequestHeader
+            可以把Request请求header部分的值绑定到方法的参数上
+            public void displayHeaderInfo(@RequestHeader("Accept-Encoding") String encoding, @RequestHeader("Keep-Alive") long keepAlive)
+        @CookieValue
+            绑定 cookie 的值到 Controller 方法参数
+            public String testCookieValue(@CookieValue ( "hello" ) String cookieValue, @CookieValue String hello)
+        @PathVariable：
+            用于将请求URL中的模板变量映射到功能处理方法的参数上，即取出uri模板中的变量作为参数
+
+        RequestEntity
+            表示完整的请求报文（用的少，几乎不用）
+            其中getHeaders()获取请求报文的请求头信息
+            其中getBody()获取请求报文的请求体信息
+    3、返回相关
+        @ResponseBody：
+            将Controller的方法返回的对象，通过适当的HttpMessageConverter转换为指定格式后，写入到Response对象的body数据区。
+        @ResponseStatus
+            指定控制器方法抛出异常时的 HTTP 状态码
+            （1）和@RequestMapping配合
+                如果不使用，默认返回200，表示浏览器中共南昌渲染试图
+                如果使用，不设定200，浏览器仍可正常渲染试图，但是可回调error函数
+            （2）和@ExceptionHandler配合
+                和1区别不大
+            （3）加在自定义异常上面
+                如果不加，在代码中直接抛出该自定义异常，会以500的HTTP状态码响应到浏览器
+                如果加，在代码中直接抛出该自定义异常，会以指定的HTTP状态码和指定的reason响应到浏览器
+        ResponseEntity
+            ResponseEntity 设置响应到浏览器的响应报文
+            ResponseEntity类型用在控制器方法的返回值，返回的ResponseEntity就是响应到浏览器的响应报文。
+
+43、如何定义处理方法下（没看懂，需要刷视频；例子：more-complex-controller-demo）
+    类型转换WebMvcConverter（MoneyFormatter.java）
+        Spring Boot 在 WebMvcAutoConfiguration 中实现了⼀个
+        添加⾃定义的 Converter
+        添加⾃定义的 Formatter
+    定义校验
+        通过 Validator 对绑定结果进⾏校验
+            Hibernate Validator
+        @Valid 注解
+        BindingResult
+            public Coffee addCoffee(@Valid NewCoffeeRequest newCoffee,BindingResult result)
+    Multipart 上传
+        配置 MultipartResolver
+            Spring Boot ⾃动配置 MultipartAutoConfiguration
+        ⽀持类型 multipart/form-data
+        MultipartFile 类型
+
+44、Spring MVC视图解析机制上
+    1、ViewResolver 与 View 接⼝
+        AbstractCachingViewResolver：缓存，抽象的基类
+        UrlBasedViewResolver
+        FreeMarkerViewResolver：freeMarker
+        ContentNegotiatingViewResolver:
+            根据我可以接受的返回类型来选择一个合适的响应，xml、json的
+            把相应的这些请求转给合适的ViewResolver继续做一个处理
+        InternalResourceViewResolver
+            最后的内置的解析器，它是用来处理JSP还有JSTL的
+        这些ViewResolver他们每一个都可以去做一个解析，返回一个View对象，再用View对象做一个呈现
+    2、如何做试图解析
+        initStrategies()
+            initViewResolvers()初始化了对应ViewResolver
+            它会加载spring上下文中的所有的ViewResolvers
+        doDispatch()
+            processDispatchResult()
+                视图名到具体视图的一个解析，解析出之后，做一个视图的呈现
+                如果没有返回视图的话，尝试RequestToViewNameTranslator
+                resolveViewName()解析View对象
+                如果有异常，会做一个异常视图的处理
+
+        初始化DispatcherServlet的时候，会初始化ViewResolver
+
+45、Spring MVC视图解析机制下
+    使⽤ @ResponseBody 的情况
+
+
+        后台直接返回pojo对象，前端直接接收为json对象或者字符串，使⽤注解@ResponseBody，此注解不走视图解析器;
+        当方法上面没有写ResponseBody,底层会将方法的返回值封装为ModelAndView对象。
+
+
+        • 在 HandlerAdapter.handle() 的中完成了 Response 输出
+            • RequestMappingHandlerAdapter.invokeHandlerMethod()
+            • HandlerMethodReturnValueHandlerComposite.handleReturnValue()
+            • RequestResponseBodyMethodProcessor.handleReturnValue()
+    重定向的视图
+        redirect:相当于做了一个http302的跳转，可以认为是客户端发起的重定向的跳转；可能会丢失上一个请i去的request信息
+        forward:服务端发起的，浏览器上不会发现变化
+
+46、Spring MVC中的常用视图（上）di's
+    messageconverter
+
+47、Spring MVC中的常用视图（下）
+
+49、Spring MVC中的异常处理机制
+    核心接口：HandlerExceptionResolver
+    实现类：
+        SimpleMappingExceptionResolver
+        DefaultHandlerExceptionResolver
+        ResponseStatusExceptionResolver
+        ExceptionHandlerExceptionResolver
+
+    异常处理方法：@ExceptionHandler
+    添加位置
+        @Controller/@RestController
+            优先级高
+        @ControllerAdvice/@RestControllerAdvice
+            优先级低
+
+    代码：
+        @ControllerAdvice
+        public class GlobalControllerAdvice {
+            @ExceptionHandler(ValidationException.class)
+            @ResponseStatus(HttpStatus.BAD_REQUEST)
+            public Map<String, String> validationExceptionHandler(ValidationException exception) {
+                Map<String, String> map = new HashMap<>();
+                map.put("message", exception.getMessage());
+                return map;
+            }
+        }
+
+50、Spring当中的切入点
+    （1）核心接口：
+        HandlerInterceptor
+            boolean preHandle();
+                预处理，如权限验证
+            void postHandle();
+                视图呈现前
+            void afterCompletion();
+                视图呈现后
+    （2）针对@ResponseBody和ResponseEntity
+        ResponseBodyAdvice
+    （3）针对异步请求的接口
+        AsyncHandlerInterceptor
+            void afterConcurrentHandlingStarted();
+    （4）拦截器的配置方式
+        常规方法：
+            WebMvcConfigurer.addInterceptors();
+        Spring boot中的配置：
+            创建一个@Configuration的WebMvcConfigurer配置类
+            不能带有@EnableWebMvc（想彻底控制MVC除外）

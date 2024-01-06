@@ -57,9 +57,15 @@
             <version>1.18.16</version>
         </dependency>
         <dependency>
+<<<<<<< HEAD
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
+=======
+            <groupId>cglib</groupId>
+            <artifactId>cglib</artifactId>
+            <version>3.3.0</version>
+>>>>>>> e4b39f14dcd6f406754b6f1f20e37030ea9973e9
         </dependency>
     </dependencies>
 </project>

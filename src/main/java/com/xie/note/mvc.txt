@@ -1,0 +1,71 @@
+
+是否使用@ResponseBody的区别
+1、ServletInvocableHandlerMethod.invokeAndHandle
+    //获取返回值
+    Object returnValue = invokeForRequest(webRequest, mavContainer, providedArgs);
+    //处理返回值
+    this.returnValueHandlers.handleReturnValue(returnValue, getReturnValueType(returnValue), mavContainer, webRequest);
+    //上一句等价于
+    HandlerMethodReturnValueHandlerComposite.handleReturnValue
+    //获取处理的Handler
+    HandlerMethodReturnValueHandler handler = selectHandler(returnValue, returnType);
+        RequestResponseBodyMethodProcessor:
+            @Override
+            public boolean supportsReturnType(MethodParameter returnType) {
+                return (AnnotatedElementUtils.hasAnnotation(returnType.getContainingClass(), ResponseBody.class) ||
+                        returnType.hasMethodAnnotation(ResponseBody.class));
+            }
+        ModelAttributeMethodProcessor
+            @Override
+            public boolean supportsReturnType(MethodParameter returnType) {
+                return (returnType.hasMethodAnnotation(ModelAttribute.class) ||
+                        (this.annotationNotRequired && !BeanUtils.isSimpleProperty(returnType.getParameterType())));
+            }
+
+2.1、@ResponseBody
+
+    （1）RequestResponseBodyMethodProcessor.handleReturnValue(){
+            mavContainer.setRequestHandled(true);
+            ServletServerHttpRequest inputMessage = createInputMessage(webRequest);
+            ServletServerHttpResponse outputMessage = createOutputMessage(webRequest);
+            writeWithMessageConverters(returnValue, returnType, inputMessage, outputMessage);
+            //使用MappingJackson2HttpMessageConverter进行消息转换
+            AbstractMessageConverterMethodProcessor.writeWithMessageConverters
+        }
+
+2.2、非@ResponseBody
+    （1）ModelAttributeMethodProcessor.handleReturnValue(){
+        if (returnValue != null) {
+            String name = ModelFactory.getNameForReturnValue(returnValue, returnType);
+            mavContainer.addAttribute(name, returnValue);
+        }
+        }
+    (2)创建ModelAndView并返回
+        RequestMappingHandlerAdapter.getModelAndView()
+    (3)回到DispatcherServlet.doDispatch(){
+        mv = ha.handle(processedRequest, response, mappedHandler.getHandler());
+        applyDefaultViewName(processedRequest, mv);
+        mappedHandler.applyPostHandle(processedRequest, response, mv);
+        //处理视图
+        processDispatchResult(processedRequest, response, mappedHandler, mv, dispatchException);
+    }
+    (4)视图的渲染回到DispatcherServlet.render(mv, request, response);
+        //视图的解析
+        View view = resolveViewName(viewName, mv.getModelInternal(), locale, request);
+            @Nullable
+            protected View resolveViewName(String viewName, @Nullable Map<String, Object> model,
+                    Locale locale, HttpServletRequest request) throws Exception {
+
+                if (this.viewResolvers != null) {
+                    for (ViewResolver viewResolver : this.viewResolvers) {
+                        View view = viewResolver.resolveViewName(viewName, locale);
+                        if (view != null) {
+                            return view;
+                        }
+                    }
+                }
+                return null;
+            }
+        //调用View的render真正的渲染视图
+        void render(@Nullable Map<String, ?> model, HttpServletRequest request, HttpServletResponse response)
+        			throws Exception;
