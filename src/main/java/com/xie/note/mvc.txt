@@ -23,6 +23,7 @@
             }
 
 2.1、@ResponseBody
+
     （1）RequestResponseBodyMethodProcessor.handleReturnValue(){
             mavContainer.setRequestHandled(true);
             ServletServerHttpRequest inputMessage = createInputMessage(webRequest);
@@ -31,7 +32,6 @@
             //使用MappingJackson2HttpMessageConverter进行消息转换
             AbstractMessageConverterMethodProcessor.writeWithMessageConverters
         }
-
 
 2.2、非@ResponseBody
     （1）ModelAttributeMethodProcessor.handleReturnValue(){

@@ -8,7 +8,7 @@ import javax.validation.constraints.NotNull;
 public class User {
     @NotNull
     private long id;
-    @NotNull
+    @NotNull(message = "名字不能为空")
     private String name;
     @NotNull
     private String pwd;
