@@ -1,0 +1,26 @@
+1、校验的大致结构
+    BeanValidation是一个运行时的数据验证框架，是一套JavaEE的规范；
+    Hibernate-Validator提供了内置的constraint实现，
+
+    javax.validation.constraints包下是beanvalidation支持的约束，以注解的形式使用
+
+    BindingResult是spring对于Hibernate-Validator的进一步封装，主要处理约束违反信息的处理。也就是当判断校验不通过时所获取的默认的或者自定义的错误信息。
+    使用@Valid结合BindingResult实例，Spring将对被注解的实体进行约束校验，原理是AOP
+
+2、常用校验
+    Bean Validation内置的
+        @Null，@NotNull,
+        @AssertTrue,@AssertFalse,
+        @Min(value),@Max(value)：忽略小数
+        @DecimalMin(value),@DecimalMax(value)：不会忽略小数
+        @Size(max,min)：集合对象
+        @Digits(integer,fraction)：integer整数，fraction小数
+        @Past,@Future
+        @Pattern(value)
+    Hibernate Validator附加的
+        @Email
+        @Length
+        @NotEmpty
+        @Range
+
+
