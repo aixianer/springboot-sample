@@ -34,13 +34,14 @@ public class UserController {
     @PostMapping(path = "/add1", consumes = MediaType.APPLICATION_JSON_VALUE,produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
     @ResponseBody
     public User addUser1(@Valid @RequestBody User user, BindingResult result) {
-
+        log.info("addUser1 start");
         if (result.hasErrors()) {
             log.warn("Binding Errors: {}", result);
             throw new ValidationException(result.toString());
         }
 
         String str = userService.addUser(user.getName(), user.getPwd()) ? "success" : "fail";
+        log.info("addUser1 end");
         return new User("aaa","bbb");
     }
 
