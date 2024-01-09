@@ -777,4 +777,72 @@ springboot1
             字母排序
             SR:service release
 91、使用Eureka作为服务中心
+    Eureka概述
+        什么是Eureka
+            是在AWS上定位服务的REST服务
+        Netflix Oss
+        Spring对Netflix套件的支持
+            spring cloud netflix
+    本地启动一个简单的Eureka服务
+        Starter
+            spring-cloud-dependencies
+            spring-cloud-starter-netflix-eureka-starter
+        声明
+            @EnableEurekaServer
+        注意事项
+            默认端口8761
+            Eureka自己不要注册到Eureka上了
+    将服务注册到Eureka
+        Starter
+            spring-cloud-starter-netflix-eureka-client
+        声明
+            @EnableDiscoveryClient
+            @EnableEurekaClient
+        一些配置项
+            eureka.client.service-url.default-zone
+            eureka.client.instance.prefer-ip-address
+        如果没有声明，发现包含一些依赖，也会注册
+    关于Bootstrap属性
+        属性
+            启动引导阶段加载的属性
+            bootstrap.properties|.yml
+            spring.cloud.bootstrap.name=bootstrap
+        常用配置
+            spring.application.name=应用名
+            配置中心相关
+
+92、使用Spring Cloud Loadbalance访问服务
+    如何获得服务地址
+        EurekaClient
+            getNextServerFromEureka()
+        DiscoveryClient
+            getInstances();
+            //spring cloud提供的一个抽象，获取实例
+    Load Balancer Client
+        RestTemplate与WebClient
+            @LoadBalanced:取得我要调用的目标的地址
+        实际是通过ClientHttpRequestInterceptor实现的
+            LoadBalancerInterceptor
+            LoadBalanceClient
+                RibbonLoadBalancerClient
+       通过对RestTemplate做了LoadBalancer的一个增强
+
+93、使用Feign访问服务
+    Feign
+        声明式的Rest Web服务客户端
+    Spring Cloud OpenFeign
+        spring-cloud-starter-openfeign
+    Feign的简单使用
+        开启Feign的支持
+            @EnableFeignClients
+        定义Feign接口
+            @FeignClient
+            实现远程调用
+        简单配置
+            FeignClientsConfiguration
+            Encoder/Decoder/Logger/Contract/Client...
+
+
+
+
 
