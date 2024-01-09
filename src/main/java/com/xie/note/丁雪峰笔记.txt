@@ -510,3 +510,271 @@ springboot1
             实现AbstractHttpSessionApplicationInitializer
                 配置DelegatingFilterProxy
         SpringBoot对session的支持
+
+67、Spring Boot的组成部分
+    （1）特性
+        方便地创建可独立运行的Spring程序
+        内嵌tomcat jetty或undertow
+        简化项目的构建配置
+        为spring及第三方库提供挂自动配置
+        提供生产级特性：如监控
+        无需生成代码或者xml配置
+    （2）四大核心
+        自动配置
+        起步依赖：starter dependency
+        命令行页面
+        Actuator:监控
+
+68、Spring Boot自动配置原理
+    自动配置
+        基于添加JAR依赖自动对Spring Boot应用程序进行配置
+        spring-boot-autoconfiguration
+    开启自动配置
+        @EnableAutoConfiguration
+            exclude = Class<?>[]
+                排除自动配置类
+        @SpringBootApplication
+    自动配置的实现原理
+        AutoConfigurationImportSelector
+        META-INF/spring.factories
+            ***.autoconfigure.EnableAutoConfiguration
+        条件注解
+            @Conditional
+            @ConditionalOnClass
+                classpath下面有什么类的时候生效
+            @ConditionalOnBean
+                spring容器里存在某个特定bean生效
+            @ConditionalOnMissingBean
+                没有某个bean的时候
+            @ConditionalOnProperty
+                配置了某些特定属性的时候怎么做
+        条件注解示例（datasource）
+            DataSourceAutoConfiguration
+            @ConditionalOnClass({DataSource.class,EmbeddedDatabaseType.class})
+        了解自动配置的情况
+            观察自动配置的判断结果
+                program arguments : --debug
+            ConditionEvaluationReportLoggingListener
+                Positive matches
+                Negative matches
+                Exclusions
+                Unconditional classes
+
+68、自定义自动配置类
+    （1）主要工作内容
+        编写Java Config
+            @Configuration
+        添加条件
+            @Conditional
+        定位自动配置
+            META-INF/spring.factories
+    （2）条件注解大家庭
+        条件注解
+            @Conditional
+        类条件
+            @ConditionalOnClass
+            @ConditionalOnMissingClass
+        属性条件
+            @ConditionalOnProperty
+        Bean条件
+            @ConditionalOnBean
+            @ConditionalOnMissingBean
+            @ConditionalOnSingleCandidate
+        资源条件
+            @ConditionalOnResource
+        Web应用条件
+            @ConditionalOnWebApplication
+            @ConditionalOnNotWebApplication
+        其他条件
+            @ConditionalOnExpression
+            @ConditionalOnJava
+            @ConditionalOnJndi
+        自动配置的执行顺序
+            @AutoConfigureBefore
+            @AutoConfigureAfter
+            @AutoConfigureOrder
+    （3）错误分析
+        FailureAnalyzer
+
+70、如何在低版本Spring中快速实现类似自动配置的功能
+71、了解起步依赖及其实现原理
+    兼容和冲突问题
+    关于Maven依赖管理的一些小技巧
+        了解你的依赖
+            mvn dependency:tree
+            IDEA Maven Helper插件
+        排除特定依赖
+            exclusion
+        统一管理依赖
+            dependencyManagement
+            Bill of Materials - bom
+        Starter Dependencies
+            直接面向功能
+72、定制自己的起步依赖
+    主要内容
+        autoconfigure模块，包含自动故意来
+        starter模块，包含纸箱自动高配置模板的依赖以及其他相关依赖
+    命名方式
+        xxx-spring-boot-autoconfigure
+        xxx-spring-boot-starter
+    其他
+        仅添加必要的依赖
+
+73、深挖Spring Boot的配置加载机制
+    xxx
+    外化配置加载顺序
+        jar包外部的application-{profile}.properties或yml
+        jar包内部的application-{profile}.properties或yml
+        jar包外部的application-.properties或yml
+        jar包内部的application-.properties或yml
+        @Configuration类上的@PropertySource
+        SpringApplication.setDefaultProperties()设置的默认属性
+        默认位置
+            ./config,./,classpath/config,classpath的/
+        修改名字或者路径
+            spring.config.name
+            spring.config.location
+            spring.config.additional-location
+        Relaxed Binding
+74、了解配置背后的PropertySource
+
+    定制PropertySource
+        实现PropertySource
+
+75、认识Spring Boot的各类Actuator Endpoint
+    Actuator
+        目的：监控并管理应用程序
+        访问方式：HTTP;JMX
+        依赖：spring-boot-starter-actuator
+    一些常用的EndPoint
+        ID 说明 默认开启 默认 HTTP 默认 JMX
+        beans 显示容器中的 Bean 列表 Y N Y
+        caches 显示应⽤中的缓存 Y N Y
+        conditions 显示配置条件的计算情况 Y N Y
+        configprops 显示 @ConfigurationProperties 的信息 Y N Y
+        env 显示 ConfigurableEnvironment 中的属性 Y N Y
+        health 显示健康检查信息 Y Y Y
+        httptrace 显示 HTTP Trace 信息 Y N Y
+        info 显示设置好的应⽤信息 Y Y Y
+
+        ID 说明 默认开启 默认 HTTP 默认 JMX
+        loggers 显示并更新⽇志配置 Y N Y
+        metrics 显示应⽤的度量信息 Y N  Y
+        mappings 显示所有的 @RequestMapping 信息 Y N Y
+        scheduledtasks 显示应⽤的调度任务信息 Y N Y
+        shutdown 优雅地关闭应⽤程序 N N Y
+        threaddump 执⾏ Thread Dump Y N Y
+        heapdump 返回 Heap Dump ⽂件，格式为 HPROF Y N N/A
+        prometheus 返回可供 Prometheus 抓取的信息 Y N N/A
+    JMX?
+76、动手定制Health Indicator
+    判断系统的健康状况
+
+
+77、通过Micrometer获取运行数据
+    系统度量指标
+    缓存、类加载器、GC、CPU 利⽤率、线程池
+
+78、通过Spring Boot Admin了解程序的运行状态
+    Spring Boot的管理工具
+    运维人员:普罗米修斯，Zabbix
+
+79、如何定制Web容器参数
+    （1）内嵌Web容器
+        tomcat，jetty，undertow,netty
+    （2）容器的配置
+        端口
+            server.port
+            server.address
+        压缩
+            server.compression.enabled
+            server.compression.min-response-size
+            server.compression.mime-types
+        编程的方式配置
+            xxx
+
+80、Http/2上
+    https的支持
+    http各种版本和https
+
+-------------------------
+86、简单理解微服务
+    微服务就是一些协同工作的小而自治的服务
+    微服务的优点
+        异构型
+            语言，存储
+        弹性
+            一个组件不可用给，不会导致级联故障
+        扩展
+            单体服务不易扩展，多个较小的服务可以按照需求扩展
+        其他
+            易于部署
+            与组织结构对其
+            可结合性
+            可替代性
+    代价
+        分布式系统的复杂性
+        开发、测试等诸多研发中的复杂性
+        部署、监控等诸多运维的复杂性
+    Sam Newman的微服务实战
+
+87、如果理解云原生（Cloud Native）
+    xxx
+    云原生应用要求
+        DevOps
+            开发与运维一同致力于交付高品质的软件服务于客户
+        持续交付
+            软件的构建、测试和发布，要更快、更频繁和更稳定
+        微服务
+            以一组小型服务的形式来部署应用
+        容器
+            提供比传统虚拟机更高的效率
+
+88、Factor App上
+    为了构建SaaS应用提供有效的方法论
+    适用于任意语言和后端服务的开发的应用程序
+    http://12factor.net/zh_cn
+    12-Factor
+        基准代码
+            一份基准代码，多分部署
+        依赖
+            显示声明依赖关系
+        配置
+            在环境中存储配置
+        后端服务
+            把后端服务当作附件资源
+        构建、发布、运行
+            严格分离构建和运行
+        进程
+            以一个或多个无状态的进行运行应用
+        端口绑定
+            通过端口绑定提供服务
+        并发
+            通过进行模型进行扩展
+        已处理
+            快速启动和优化终止可最大化健壮性
+        开发环境和线上环境等价
+            尽可能保证开发、预发布，线上环境相同
+        日志
+            把日志当作事件流
+        管理进程
+            后台管理任务当作一次性进程运行
+
+ 90、Spring Cloud的主要功能
+    服务发现：eureka,zookeeper,conful,nacos,
+    服务熔断:hystrix(不维护)，resilience4j,
+    配置服务:git,zk,conful,nacos
+    服务安全:springcloudsecurity(auth身份认证的内容)
+    服务网关
+    分布式消息:springcloudstream,kafka,rabbitmq
+    分布式跟踪:tracing
+    各种云平台的支持:阿里巴巴，微软云等
+
+    spring cloud的版本号规则
+        大工程，其中包含多个独立项目
+        bom release train
+            london tube stations
+            字母排序
+            SR:service release
+91、使用Eureka作为服务中心
+
