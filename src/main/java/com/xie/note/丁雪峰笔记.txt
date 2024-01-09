@@ -778,3 +778,186 @@ springboot1
             SR:service release
 91、使用Eureka作为服务中心
 
+96、Consul作为注册中心
+    介绍
+        分布式的、高可用的、能够感知数据中心变化的分布式的设施
+        可以用来做链接、配置这样的一些事情；
+        能够支持数据中心的，多数据中心
+    认识HashiCorp Consul
+        Consul
+            https:www.consul.io
+        关键特性
+            服务发现
+            健康检查：特定的endpoint,
+            KV存储:可以用来做一些配置
+            多数据中心
+            安全的服务间通讯：加密信息交互
+    使用Consul提供服务发现能力
+        Http API
+        DNS:xxx.service.consul
+        与Nginx联动，比如ngx_http_consul_backend_module,nginx的upstream感知
+    使用Consul作为注册中心
+        Spring Cloud Consul
+        简单的配置
+97、Nacos作为注册中心
+    Nacos
+        一个更易于构建云原生应用的动态服务发现、配置管理和服务管理平台
+    功能
+        动态服务配置
+        服务发现和管理
+        动态DNA服务
+    资料
+        官网和程序员DD博客
+    认识Nacos
+
+    使用Nacos作为注册中心
+        Spring Cloud Alibaba
+            spring-cloud-alibaba-dependencies
+            spring-cloud-starter-alibaba-nacos-discovery
+        简单配置
+            spring.cloud.nacos.discovery.server-addr
+
+100、使用Hystrix实现服务熔断上
+    断路器
+       • Circuit Breaker pattern - Release It, Michael Nygard
+       • CircuitBreaker, Martin Fowler
+       • https://martinfowler.com/bliki/CircuitBreaker.html
+   AOP的方式自己写短路保护
+
+101、Netflix Hystrix
+    实现了断路器模式
+    @HystrixCommand
+        fallbackMethod/commProperties
+            @HystrixProperty(name)
+    Spring Cloud的支持
+        spring-cloud-starter-netflix-hystrix
+        @EnableCircuitBreaker
+    Feign支持
+        feign.hystrix.enabled=true
+        @FeignClient
+            fallback/fallbackFactory
+    和eureka一样netflix不在维护了
+102、如果观察熔断的情况
+    打日志
+        在发声熔断时候打印特定日志
+    看监控
+        主动像监控系统埋点，上报熔断情况
+        提供与熔断相关的Endpoint(端点，接口),让第三方系统来拉去信息
+    Hystrix Dashboard
+        Hystrix Metrics Stream
+            spring-boot-starter-actuator
+                /actuator/hystrix.stream
+        Hystrix Dashboard
+            spring-cloud-starter-netflix-hystrix-dashboard
+                @EnableHystrixDashboard
+                /hystrix
+    聚合集群熔断信息
+        Netflix Turbine
+            spring-cloud-starter-netflix-turbines
+                @EnableTurbine
+                /turbin.stream?cluster=集群名
+
+
+103、使用Resilience4j实现服务熔断
+    介绍
+        一款受Hystrix启发的轻量级且易于使用的容错库
+        针对java8与函数式编程设计
+    附件组件
+        组件名称 功能
+        resilience4j-circuitbreaker Circuit breaking
+        resilience4j-ratelimiter 频率控制
+        resilience4j-bulkhead 依赖隔离&负载保护
+        resilience4j-retry ⾃动重试
+        resilience4j-cache 应答缓存
+        resilience4j-timelimiter 超时控制
+        组件名称 功能
+        resilience4j-reactor Spring Reactor ⽀持
+        resilience4j-micrometer Micrometer Metrics 输出
+        resilience4j-prometheus Prometheus Metrics 输出
+        resilience4j-spring-boot2 Spring Boot 2 Starter
+        resilience4j-feign Feign 适配器
+    断路器
+        实现
+        • 基于 ConcurrentHashMap 的内存断路器
+        • CircuitBreakerRegistry：注册断路器
+        • CircuitBreakerConfig：配置
+        依赖
+        • resilience4j-spring-boot2
+        • resilience4j-circuitbreaker
+        • resilience4j-micrometer
+        •
+        注解⽅式
+        • @CircuitBreaker(name = "名称")
+        配置
+        • CircuitBreakerProperties
+        • resilience4j.circuitbreaker.backends.名称
+        • failure-rate-threshold
+        • wait-duration-in-open-state
+103、使用Resilience4j实现限流上
+    Bulkhead（隔舱）
+        目的
+            防止下游依赖被并发请求冲击
+            防止发生连环故障
+        用法
+            BulkheadRegistry/BulkheadConfig
+            @Bulkhead(name="名称")
+        配置
+            BulkheadProperties
+                resilience4j.bulkhead.backends.名称
+                    max-concurrent-all
+                    max-wait-time
+
+104、使用Resilience4j实现限流下
+    RateLimiter
+        目的
+            限制特定时间段内的执行次数
+        用法
+            RateLimiterRegistry/RateLimiterConfig
+            @RateLimiter(name="名称")
+        配置
+            • RateLimiterProperties
+                • resilience4j.ratelimiter.limiters.名称
+                • limit-for-period
+                • limit-refresh-period-in-millis
+                • timeout-in-millis
+107、基于Git的配置中心上
+    Spring Cloud Config Server
+        目的
+            提供针对外置配置的HTTP API
+        依赖
+            spring-cloud-config-server
+                @EnableConfigServer
+                支持Git/SVN/Vault/JDBC
+        使用Git作为后端存储
+            配置
+            • MultipleJGitEnvironmentProperties
+            • spring.cloud.config.server.git.uri
+            配置⽂件的要素
+            • {application}，即客户端的 spring.application.name
+            • {profile}，即客户端的 spring.profiles.active
+            • {label}，配置⽂件的特定标签，默认 master
+            HTTP 请求
+            • GET /{application}/{profile}[/{label}]
+            • GET /{application}-{profile}.yml
+            • GET /{label}/{application}-{profile}.yml
+            • GET /{application}-{profile}.properties
+            • GET /{label}/{application}-{profile}.properties
+108、基于Git的配置中心下
+    依赖
+    • spring-cloud-starter-config
+    发现配置中⼼
+    • bootstrap.properties | yml
+    • spring.cloud.config.fail-fast=true
+    • 通过配置
+    • spring.cloud.config.uri=http://localhost:8888
+
+    发现配置中⼼
+    • bootstrap.properties | yml
+    • 通过服务发现
+    • spring.cloud.config.discovery.enabled=true
+    • spring.cloud.config.discovery.service-id=configserver
+    配置刷新
+    • @RefreshScope
+    • Endpoint - /actuator/refresh
+
+109、基于Zookeeper的配置中心
