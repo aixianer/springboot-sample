@@ -1,2 +1,150 @@
-1、服务注册与发现
-2、配置中心
+一、服务注册与发现
+    1、四大功能
+        服务发现和服务健康监测
+            支持基于DNS和基于RPC的服务发现。
+            Nacos提供对服务的实时的健康检查，阻止向不健康的主机或服务实例发送请求。
+                Nacos 支持传输层 (PING 或 TCP)和应用层 (如 HTTP、MySQL、用户自定义）的健康检查
+                Nacos 提供了 agent 上报模式和服务端主动检测2种健康检查模式。
+        动态配置服务
+            以中心化、外部化和动态化的方式管理所有环境的应用配置和服务配置。
+            消除了配置变更时重新部署应用和服务的需要，让配置管理变得更加高效和敏捷。
+            配置中心化管理让实现无状态服务变得更简单，让服务按需弹性扩展变得更容易。
+            提供了一个简洁易用的UI (控制台样例 Demo) 帮助管理所有的服务和应用的配置
+            Nacos 还提供包括配置版本跟踪、金丝雀发布、一键回滚配置以及客户端配置更新状态跟踪在内的一系列开箱即用的配置管理特性，能更安全地在生产环境中管理配置变更和降低配置变更带来的风险。
+        动态DNS服务
+            动态 DNS 服务支持权重路由，更容易地实现中间层负载均衡、更灵活的路由策略、流量控制以及数据中心内网的简单DNS解析服务。
+            Nacos 提供了一些简单的 DNS APIs
+        服务及其元数据管理
+            从微服务平台建设的视角管理数据中心的所有服务及元数据，包括管理服务的描述、生命周期、服务的静态依赖分析、服务的健康状态、服务的流量管理、路由及安全策略、服务的 SLA 以及最首要的 metrics 统计数据。
+    2、服务发现
+        服务消费方从服务注册中心获取服 务提供方的地址，从而进行远程调用，这个过程叫做服务发现
+        过程：
+        （1）在每个服务启动时会向服务发现中心上报自己的网络位置。
+            在服务发现中心内部会形成一个服务注册表，服务注册表是服务发现的核心部分，是包含所有服务实例的网络地址的数据库。
+        （2）服务发现客户端会定期从服务发现中心同步服务注册表 ，并缓存在客户端。
+        （3）当需要对某服务进行请求时，服务实例通过该注册表，定位目标服务网络地址。
+            若目标服务存在多个网络地址，则使用负载均衡算法从多个服务实例中选择出一个，然后发出请求。
+    3、其他同类产品
+        Eureka、Consul和Zookeeper
+    4、手动注册和发现代码
+        （1）注册1
+            try {
+            	  // 创建NamingService对象，并声明nacos的地址
+                  NamingService namingService = NamingFactory.createNamingService("localhost:8848");
+                  //创建服务实例，名字叫customer，IP地址为127.0.0.1，端口为8081
+                  namingService.registerInstance("customer", "127.0.0.1", 8081);
+            } catch (NacosException e) {
+                  throw new RuntimeException(e);
+            }
+        （2）注册2
+            try {
+                NamingService namingService = NamingFactory.createNamingService("127.0.0.1:8848");
+                // 第二种注册方式，所有数据能够自己写
+                Instance instance = new Instance(); // 创建一个实例
+                instance.setServiceName("test-app"); // 实例服务名
+                instance.setIp("127.5.26.30"); // IP地址
+                instance.setHealthy(true); // 服务是否健康，跟后面服务发现有关
+                instance.setPort(9762); // 端口
+                instance.setClusterName("sh"); // 所属集群
+                Map<String, String> map = new HashMap<String, String>();
+                map.put("info", "my secret is null");
+                instance.setMetadata(map); // 存自定义信息
+                namingService.registerInstance("app2", instance); // 注册实例
+                System.in.read(); // 这里只是让方法保持运行，否则nacos注册完就结束了，你在nacos网站上是看不到的
+            } catch (NacosException e) {
+                throw new RuntimeException(e);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        （3）服务发现1（手动）
+            try {
+                  // 创建nacos连接
+                  NamingService namingService = NamingFactory.createNamingService("localhost:8848");
+                  // 获取一个健康的controller服务实例
+                  Instance instance = namingService.selectOneHealthyInstance("controller");
+                  if (instance == null) {
+                     System.out.println("没有获取到健康的实例");
+                     return result;
+                  }
+             } catch (NacosException e) {
+                  throw new RuntimeException(e);
+            }
+        （4）服务发现2（Spring Cloud）
+            @RequestMapping(value = "/cloud", method = RequestMethod.GET)
+            public String sendRequestBySpringCloud() {
+                if(restTemplate == null) {
+                    System.out.println("restTemplate = null");
+                    restTemplate = new RestTemplate();
+                }else {
+                    System.out.println("restTemplate = " + restTemplate);
+                }
+                String result = "什么都没拿到"; // 返回的信息
+                //此处的controller是已经注册到nacos上的服务名, /show是暴露的接口
+                String url = "http://controller/show?meg={meg}&user={user}";
+                result = restTemplate.getForObject(url, String.class, "nacos", "lican");
+                return result;
+            }
+
+    5、服务注册的原理
+        注册方式有两种，Open API(nacos/v1/ns/instance)和SDK（registerInstance）
+        参考链接：https://www.cnblogs.com/acestart/p/14881968.html
+        （1）spring-cloud-common包有一个ServiceRegistry，它是Spring Cloud提供的服务注册标准
+        （2）该接口有个实现类，NacosServiceRegistry
+        （3）springcloud集成nacos的实现过程
+            （1）commons包下的factory包含自动装配信息，AutoServiceRegistrationAutoConfiguration，它是服务注册相关的配置类
+            （2）在AutoServiceRegistrationAutoConfiguration配置类中,可以看到注入了一个AutoServiceRegistration实例
+            （3）AbstractAutoServiceRegistration抽象类实现了该接口,并且最重要的是NacosAutoServiceRegistration继承了AbstractAutoServiceRegistration
+            （4）EventListener我们就应该知道，Nacos是通过Spring的事件机制继承到SpringCloud
+            （5）AbstractAutoServiceRegistration实现了onApplicationEvent抽象方法,并且监听WebServerInitializedEvent事件(当Webserver初始化完成之后) , 调用this.bind ( event )方法。
+            （6）最终，NacosServiceRegistry.register()
+            （7）NacosServiceRegistry的实现，在NacosServiceRegistry.registry方法中,调用了Nacos Client SDK中的namingService.registerInstance完成服务的注册。
+            （8）跟踪NacosNamingService的registerInstance()方法：
+    6、心跳机制原理
+        所谓心跳机制就是客户端通过schedule定时向服务端发送一个数据包 ,然后启动-个线程不断检测服务端的回应,如果在设定时间内没有收到服务端的回应,则认为服务器出现了故障
+    7、服务发现原理
+       （1）可以通过subscribe方法来实现监听，
+            NamingService naming = NamingFactory.createNamingService(System.getProperty("serveAddr"))
+            naming.subscribe("example”,event->
+            if(event instanceof NamingEvent)(
+                System.out.println(((NamingEvent) event).getServceName());
+                System.out.println(((NamingEvent) event).getInstances());
+            )
+       （2）具体机制
+            （1）NacosServerList类的getServers方法
+            （2）NacosNamingService类的selectInstances方法
+            （3）hostReactor.getServiceInfo方法是获取服务的核心方法:
+            （4）getServiceInfo是服务发现的核心方法，先查询serviceInfoMap集合中查询本地缓存，本地缓存查询不到就请求Nacos Server实例，并更新本地缓存
+            Nacos客户端中有一个HostReactor类，它的功能是实现服务的动态更新，基本原理是：
+                （1）客户端发起时间订阅后，在HostReactor中有一个UpdateTask线程，每10s发送一次Pull请求，获得服务端最新的地址列表
+                （2）对于服务端，它和服务提供者的实例之间维持了心跳检测，一旦服务提供者出现异常，则会发送一个Push消息给Nacos客户端，也就是服务端消费者
+                （3）服务消费者收到请求之后，使用HostReactor中提供的processServiceJSON解析消息，并更新本地服务地址
+        （3）总结
+            Ribbon
+                项目启动时，会创建一个负载均衡拦截器。
+                从Ribbon发起服务请求开始，最终会调用到拦截器的拦截方法。
+                拦截方法又调用ServerList获取实例接口,而NacosServerList实现获取实例列表。
+            Nacos调用服务
+                NacosServerList实现了获取服务实例列表。
+                NacosServerList类selectInstances方法最终调用了hostReactor.getServiceInfo方法
+                getServiceInfo方法先从serviceInfoMap集合中获取本地缓存，如果本地缓存找不到，就请求Nacos Server获取服务实例，并更新本地缓存。
+                获取服务之后，定时更新本地缓存。
+二、配置中心
+    （1）是什么
+        主要解决：解决微服务下配置文件分散，无法区分环境，配置文件无法实时更新
+        中心思路：
+            集中管理各种配置，并提供一套标准接口
+            各服务根据自己的需要拉取配置数据
+            配置中心中的各种参数有更新的时候，也能通知到各个服务实时的过来同步最新的信息
+    （2）配置文件加载顺序：
+        bootstrap.properties -> bootstrap.yml -> application.properties -> application.yml
+    （3）一些概念
+        namespace:
+            命名空间，用来区分部署环境，如dev,prod等；或者多租户
+        group:
+            组
+        Data ID:
+            用户自定义的配置健
+            prefix.{spring.profile.active}.${file-extension}
+                prefix:spring.application.name或者spring.cloud.nacos.config.prefix
+                spring.profile.active：当前环境对应的profile
+                extension:扩展名
