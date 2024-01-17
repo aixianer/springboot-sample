@@ -65,6 +65,8 @@
                 ①：如果存在,则给ReferenceBean的ref属性(代理对象)取一个别名，别名为referenceBeanName。
                 ②：如果不存在 ，则将创建出来的ReferenceBean注册到Spring容器中，由于ReferenceBean是一个FactoryBean，后续可以通过getObject()方法获取到ref代理对象
                 通过referenceBean.get()方法返回一个ref代理对象，作为注入点赋值对象！
+
+
         @Import
                     注解可以实现导入第三方的包的bean到容器的功能，配合注解Configuration一起使用， 可以实现一个注解就可以注入第三方bean的能力，也就是EnableDubbo这一个注解可以标识dubbo启动与否的原理。
     代码实现
@@ -72,3 +74,29 @@
              @DubboService：暴露接口
 
 2、负载均衡
+    负载均衡是指在集群中，将多个数据请求分散在不同单元上进行执行，主要为了提高系统容错能力和加强系统对数据的处理能力。
+    类结构
+        抽象类：AbstractLoadBalance-》LoadBalance->SPI
+        LoadBalance 接口中 select() 方法的核心功能是根据传入的 URL 和 Invocation，以及自身的负载均衡算法，从 Invoker 集合中选择一个 Invoker 返回。
+
+        （1）RandomLoadBalance	随机算法，根据权重设置随机的概率
+            默认方式，根据权重分配各个 Invoker 随机选中的比例
+            加权随机策略并非一定按照比例被选到，理论上调用次数越多，分布的比例越接近权重所占的比例。
+        （2）LeastActiveLoadBalance	最少活跃数算法，指请求数和完成数之差，使执行效率高的服务接收更多请求
+            活跃数是一个 Invoker 正在处理的请求的数量，当 Invoker 开始处理请求时，会将活跃数加 1，完成请求处理后，将相应 Invoker 的活跃数减 1
+        （3）RoundRobinLoadBalance	加权轮询算法，根据权重设置轮询比例
+            基于权重来决定轮询的比例。
+                普通轮询会将请求均匀的分布在每个节点，但不能很好调节不同性能服务器的请求处理，所以加权负载均衡来根据权重在轮询机制中分配相对应的请求比例给每台服务器。
+                每个 Invoker 都有一个 current 值，初始值为自身权重。在每个 Invoker 中current = current + weight。遍历完 Invoker 后，current 最大的那个 Invoker 就是本次选中的 Invoker。选中 Invoker 后，将本次 current 值计算current = current - totalWeight。
+        （4）ConsistentHashLoadBalance	Hash 一致性算法，相同请求参数分配到相同提供者
+            一致性 Hash 负载均衡策略（ConsistentHashLoadBalance）是让参数相同的请求分配到同一机器上。
+            把每个服务节点分布在一个环上，请求也分布在环形中。以请求在环上的位置，顺时针寻找环上第一个服务节点
+            为避免请求散列不均匀，dubbo 中会将每个 Invoker 再虚拟多个节点出来，使得请求调用更加均匀
+                先创建好虚拟节点，虚拟节点保存在 TreeMap 中。
+                TreeMap 的 key 为配置的参数先进行 md5 运算，然后将 md5 值进行 hash 运算。
+                TreeMap 的 value 为被选中的 Invoker。
+                最后请求时，计算参数的 hash 值，去从 TreeMap 中获取 Invoker。
+        （5）ShortestResponseLoadBalance	基于最短响应时间的算法
+            它实现了最短响应时间的负载均衡算法，也就是从多个 Provider 节点中选出调用成功的且响应时间最短的 Provider 节点。
+            不过满足该条件的 Provider 节点可能有多个，所以还要再使用随机算法进行一次选择，得到最终要调用的 Provider 节点。
+
