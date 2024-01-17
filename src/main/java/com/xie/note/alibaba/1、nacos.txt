@@ -148,3 +148,14 @@
                 prefix:spring.application.name或者spring.cloud.nacos.config.prefix
                 spring.profile.active：当前环境对应的profile
                 extension:扩展名
+三、Nacos、Eureka和Zookeeper的区别
+    Zookeeper
+        Zookeeper采用CP强一致性原则，它可以保证服务的一致性。搭建集群的时候，如果某个节点失效，则会进行Leader选举，或者半数以上节点不可用则无法提供服务，因此可用性没法满足。ZooKeeper使用Paxos算法保证数据的一致性。
+    Eureka
+        使用AP原则、无Master/Slave（主/备）节点之分，一个节点挂了，自动切换到其他节点，实现了去中心化，它优先保证了服务的可用性。
+    Consul
+        使用CP原则，采用分布式一致性协议实现健康检查、链值对存储。为了维护数据的一致性，通常需要选举出一个Leader（领导者）来进行协调，Consul的Raft协议要求必须过半数的节点都写入成功才认为注册成功。在Leader“挂掉”之后、重新选举出Leader之前Consul服务不可用。
+    Nacos
+        选择AP和CP混合形式实现注册中心， 默认情况下采用AP高可用性原则
+            ephemeral=true,那么Nacos集群对这个client节点的效果就是AP，采用distro协议实现；
+            ephemeral=false，那么Nacos集群对这个节点的效果就是CP的，采用raft协议实现

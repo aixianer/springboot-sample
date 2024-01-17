@@ -1,2 +1,74 @@
-1、负载均衡
-2、服务调用
+1、服务调用
+    （1）版本：2.7.7
+    （2）常用注解
+        @EnableDubbo
+            @EnableDubboConfig
+                @Import({DubboComponentScanRegistrar.class})
+                作用是把配置文件中的配置组装成各种xxxConfig对象。
+                    DubboConfigConfiguration.Single.class
+                    DubboConfigConfiguration.Multiple.class
+
+            @DubboComponentScan
+                @Import({DubboConfigConfigurationRegistrar.class})
+                扫描@DubboService与@DubboReference注解，并进行处理
+                @Service的扫描是由@DubboComponentScan中通过@Import导入的DubboComponentScanRegistrar来处理的
+
+        @DubboService(version = "1.0.0", group = "test-group")
+            （1）作用：
+                @DubboService注解是Dubbo框架中的一个注解，用于标记一个类或接口作为Dubbo服务提供者，并将其发布为一个Dubbo服务
+                1、标记服务提供者：通过在类或接口上添加@DubboService注解，将其标记为一个Dubbo服务提供者。这样Dubbo框架就知道该类或接口中的方法可以被远程调用。
+                2、自动暴露服务：@DubboService注解告诉Dubbo框架需要将标记的类或接口作为服务提供者进行暴露。在应用启动时，Dubbo框架会自动处理服务的发布过程，包括协议选择、端口绑定、注册中心注册等。
+                3、透明远程调用：通过@DubboService注解暴露的服务可以被服务消费者远程调用，无需关心底层的远程调用和通信细节。Dubbo框架会自动将消费者的请求转发给服务提供者，并将结果返回给消费者。
+                4、提供配置选项：@DubboService注解提供了一些属性，可以配置服务提供者的行为，如超时时间、最大并发数、负载均衡策略等。通过这些属性的配置，可以调整服务提供者的行为以满足需求。
+            （2）过程
+                扫描@Service标注的类，得到一个BeanDefinition，一个Spring中的Bean
+                在扫描完了之后，会针对所得到的每个BeanDefinition，都会额外的再生成一个ServiceBean类型的Bean对象。这个ServiceBean通过Ref属性与Spring中的Bean联系起来！
+                ServiceBean
+                    ref，表示服务的具体实现类
+                    interface，表示服务的接口
+                    parameters，表示服务的参数（@Service注解中所配置的信息）
+                    application，表示服务所属的应用
+                    protocols，表示服务所使用的协议
+                    registries，表示服务所要注册的注册中心
+                ServiceBean还实现了ApplicationListener<ContextRefreshedEvent>，意味着在spring容器启动完毕后，会调用onApplicationEvent方法向注册中心暴露服务
+
+            （2）使用方式：
+                （1）类上
+                    @DubboService
+                    public class DemoServiceImpl implements DemoService {
+                    }
+                （2）BeanMethod上使用@DubboService
+                    @Configuration
+                    public class ReferenceConfig {
+                        @Bean
+                        @DubboService
+                        public DemoService demoServiceImpl() {
+                           return new DemoServiceImpl();
+                        }
+                    }
+        @DubboReference
+            （1）作用
+                @DubboReference注解的作用是在Dubbo框架中标记对服务提供者的引用，并将其注入到当前类中
+                1、标记服务引用：通过在服务消费者的字段或方法上添加@DubboReference注解，标记了对某个服务提供者的引用
+                2、自动引用服务：@DubboReference注解告诉Dubbo框架需要引用一个远程服务。在应用启动时，Dubbo框架会自动处理远程服务的引用过程，包括负载均衡、服务发现、连接管理等。
+                3、透明远程调用：通过@DubboReference注解引用的服务，可以像调用本地方法一样调用远程服务，无需关心底层的远程调用和通信细节。Dubbo框架会自动处理远程调用的过程，将请求发送给远程服务提供者，并返回结果给服务消费者。
+                4、提供配置选项：@DubboReference注解提供了一些属性，可以配置服务引用的行为，如超时时间、重试次数、负载均衡策略等。通过这些属性的配置，可以调整服务引用的行为以满足需求。
+                @DubboReference注解的作用是简化Dubbo服务的引用过程，使得服务消费者可以方便地引用远程服务，并通过Dubbo框架实现透明的远程调用。
+            （2）过程
+                寻找注入点
+                注入点赋值
+            （3）详细过程
+                得到当前所引入服务对应的ServiceBean的beanName（源码中叫referencedBeanName）
+                根据@Reference注解的所有信息+属性接口类型得到一个referenceBeanName
+                如果referenceBeanCache没有ReferenceBean对象，则创建一个ReferenceBean，有则获取
+                根据referencedBeanName（ServiceBean的beanName）判断Spring容器中是否存在该bean
+                ①：如果存在,则给ReferenceBean的ref属性(代理对象)取一个别名，别名为referenceBeanName。
+                ②：如果不存在 ，则将创建出来的ReferenceBean注册到Spring容器中，由于ReferenceBean是一个FactoryBean，后续可以通过getObject()方法获取到ref代理对象
+                通过referenceBean.get()方法返回一个ref代理对象，作为注入点赋值对象！
+        @Import
+                    注解可以实现导入第三方的包的bean到容器的功能，配合注解Configuration一起使用， 可以实现一个注解就可以注入第三方bean的能力，也就是EnableDubbo这一个注解可以标识dubbo启动与否的原理。
+    代码实现
+        服务端：
+             @DubboService：暴露接口
+
+2、负载均衡
