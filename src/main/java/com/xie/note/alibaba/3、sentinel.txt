@@ -1,0 +1,99 @@
+是什么
+    Sentinel 是阿里中间件团队开源的，面向分布式服务架构的轻量级高可用流量控制组件，主要以流量为切入点，从流量控制、熔断降级、系统负载保护等多个维度来帮助用户保护服务的稳定性。
+和Hystrix区别
+    对比内容	Sentinel	Hystrix
+    隔离策略	信号量隔离	线程池隔离/信号量隔离
+    熔断降级策略	基于响应时间或失败比率	基于失败比率
+    实时指标实现	滑动窗口	滑动窗口（基于 RxJava）
+    规则配置	支持多种数据源	支持多种数据源
+    扩展性	多个扩展点	插件的形式
+    基于注解的支持	支持	支持
+    限流	基于 QPS，支持基于调用关系的限流	不支持
+    流量整形	支持慢启动、匀速器模式	不支持
+    系统负载保护	支持	不支持
+    控制台	开箱即用，可配置规则、查看秒级监控、机器发现等	不完善
+    常见框架的适配	Servlet、Spring Cloud、Dubbo、gRPC 等	Servlet、Spring Cloud Netflix
+    总的来说：
+        Hystrix常用的线程池隔离会造成线程上下切换的overhead比较大；Hystrix使用的信号量隔离对某个资源调用的并发数进行控制，效果不错，但是无法对慢调用进行自动降级；Sentinel通过并发线程数的流量控制提供信号量隔离的功能；
+        此外，Sentinel支持的熔断降级维度更多，可对多种指标进行流控、熔断，且提供了实时监控和控制面板，功能更为强大。
+使用说明：
+    @SentinelResource
+        value是资源名称，是必填项
+        blockHandler：限流处理的方法名称
+        fallback：熔断降级，也就是抛出非BlockException的异常
+熔断降级策略：
+    慢调用比例
+        选择以慢调用比例作为阈值，需要设置允许的慢调用 RT（即最大的响应时间），请求的响应时间大于该值则统计为慢调用。
+        当单位统计时长（statIntervalMs）内请求数目大于设置的最小请求数目，并且慢调用的比例大于阈值，则接下来的熔断时长内请求会自动被熔断。
+        经过熔断时长后熔断器会进入探测恢复状态（HALF-OPEN 状态），若接下来的一个请求响应时间小于设置的慢调用 RT 则结束熔断，若大于设置的慢调用 RT 则会再次被熔断。
+    异常比例
+        当单位统计时长（statIntervalMs）内请求数目大于设置的最小请求数目，并且异常的比例大于阈值，则接下来的熔断时长内请求会自动被熔断。
+        经过熔断时长后熔断器会进入探测恢复状态（HALF-OPEN 状态），若接下来的一个请求成功完成（没有错误）则结束熔断，否则会再次被熔断。
+        异常比率的阈值范围是 [0.0, 1.0]，代表 0% - 100%。
+    异常数
+        当单位统计时长内的异常数目超过阈值之后会自动进行熔断。
+        经过熔断时长后熔断器会进入探测恢复状态（HALF-OPEN 状态），若接下来的一个请求成功完成（没有错误）则结束熔断，否则会再次被熔断。
+    常用参数：
+        资源名	resource	资源名，即规则的作用对象
+        熔断策略	grade	熔断策略，支持慢调用比例/异常比例/异常数策略	慢调用比例
+        最大 RT	count	慢调用比例模式下为慢调用临界 RT（响应超出该值计为慢调用，单位为 ms）；异常比例/异常数模式下为对应的阈值
+        熔断时长	timeWindow	熔断时长，单位为 s（ 在这段时间内发生熔断、拒绝所有请求）
+        统计时长	statIntervalMs	统计时长（单位为 ms），如 60*1000 代表分钟级（1.8.0 引入）	1000 ms
+        比例阈值	slowRatioThreshold	范围：[0~1] ，慢调用比例阈值，仅慢调用比例模式有效（1.8.0 引入）, 异常比例=发生异常的请求数÷请求总数
+        最小请求数	minRequestAmount	熔断触发的最小请求数，请求数小于该值时即使异常比率超出阈值也不会熔断（1.7.0 引入）（允许通过的最小请求数，在该数量内不发生熔断）
+
+动态规则（无论是推还是拉，怎么不修改代码运行）
+    Sentinel 的理念是开发者只需要关注资源的定义，当资源定义成功后可以动态增加各种流控降级规则。Sentinel 提供两种方式修改规则：
+        通过 API 直接修改 (loadRules)
+            硬编码的形式，因为不够灵活，所以肯定不能应用于生产环境。
+        通过 DataSource 适配不同数据源修改
+            拉模式：客户端主动向某个规则管理中心定期轮询拉取规则，这个规则中心可以是SQL、文件等。优点是比较简单，缺点是无法及时获取变更
+                引入依赖：
+                    <dependency>
+                        <groupId>com.alibaba.csp</groupId>
+                        <artifactId>sentinel-datasource-extension</artifactId>
+                        <version>1.8.1</version>
+                    </dependency>
+                SPI机制进行扩展，创建一个实现类，实现InitFunc接口的init()方法
+                    public class FileDataSourceInit implements InitFunc {
+
+                        public FileDataSourceInit() {
+                        }
+
+                        @Override
+                        public void init() throws Exception {
+                            String filePath = System.getProperty("user.home") + "\\sentinel\\rules\\sentinel.json";
+                            ReadableDataSource<String, List<FlowRule>> ds = new FileRefreshableDataSource<>(
+                                filePath, source -> JSON.parseObject(source, new TypeReference<List<FlowRule>>() {
+                                })
+                            );
+                            // 将可读数据源注册至 FlowRuleManager.
+                            FlowRuleManager.register2Property(ds.getProperty());
+
+                            WritableDataSource<List<FlowRule>> wds = new FileWritableDataSource<>(filePath, this::encodeJson);
+                            // 将可写数据源注册至 transport 模块的 WritableDataSourceRegistry 中.
+                            // 这样收到控制台推送的规则时，Sentinel 会先更新到内存，然后将规则写入到文件中.
+                            WritableDataSourceRegistry.registerFlowDataSource(wds);
+                        }
+
+                        private <T> String encodeJson(T t) {
+                            return JSON.toJSONString(t);
+                        }
+                    }
+                META-INF
+                    在项目的 resources/META-INF/services 目录下创建文件，名为com.alibaba.csp.sentinel.init.InitFunc ，内容则是FileDataSourceInit的全限定名称：
+                        io.github.yehongzhi.springmvc.config.FileDataSourceInit
+                sentinel.json
+                    在${home}目录下，创建\sentinel\rules目录，再创建sentinel.json文件
+
+            推模式：规则中心统一推送，客户端通过注册监听器的方式时刻监听变化，比如使用Nacos、Zookeeper 等配置中心。这种方式有更好的实时性和一致性保证，比较推荐使用这种方式。
+                启动Nacos服务器，然后登录到Nacos控制台，添加一个命名空间，添加配置
+                改造Sentinel的源码。因为官网提供的Sentinel的jar是原始模式的，所以需要改造，所以我们需要拉取源码下来改造一下，然后自己编译jar包。
+                    首先修改sentinel-dashboard的pom.xml文件：
+                    第二步，把test目录下的四个关于Nacos关联的类，移到rule目录下
+                    接着NacosConfig添加Nacos的地址配置。
+
+
+扩展阅读：
+    sentinel和hystrix的对比文章：
+        https://developer.aliyun.com/article/633786
