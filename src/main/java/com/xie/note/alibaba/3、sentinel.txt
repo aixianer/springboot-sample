@@ -93,6 +93,33 @@
                     第二步，把test目录下的四个关于Nacos关联的类，移到rule目录下
                     接着NacosConfig添加Nacos的地址配置。
 
+应用：
+    和nacos结合
+        spring:
+          application:
+            name: order-service
+          profiles:
+            active: dev
+          cloud:
+            nacos:
+              discovery:
+                server-addr: 10.0.10.7:8848
+              config:
+                server-addr: 10.0.10.7:8848
+                namespace: 982725ec-fb4b-465c-b76e-96207670129e
+                file-extension: yaml
+            sentinel:
+              transport:
+                dashboard: localhost:8080
+              datasource: # sentinel用nacos作为数据源的配置
+                flow: # 此处的flow为自定义数据源名称，可以其他
+                  nacos:
+                    server-addr: 10.0.10.7:8848 # nacos服务地址
+                    data-id: flow-rules  # 配置文件名称，即DataID
+                    namespace: 982725ec-fb4b-465c-b76e-96207670129e
+                    groupId: DEFAULT_GROUP
+                    data-type: json
+                    rule-type: flow
 
 扩展阅读：
     sentinel和hystrix的对比文章：
