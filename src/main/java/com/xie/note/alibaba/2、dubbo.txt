@@ -1,2 +1,144 @@
-1、负载均衡
-2、服务调用
+是什么
+    Dubbo是阿里巴巴公司开源的一个高性能、轻量级的Java RPC框架。
+    致力于提供高性能和透明化的RPC远程服务调用方案，以及SOA服务治理方案。
+    Dubbo是一种分布式服务框架也是一种协议，dubbo框架默认使用dubbo协议。
+    dubbo协议是阿里巴巴自己实现的一种应用层协议，传输层还是TCP。
+    所以Dubbo协议与HTTP、FTP，SMTP这些应用层协议是并列的概念。
+    除了默认的Dubbo协议，Dubbo框架还支持RMI、Hessian、HTTP等协议。
+RPC调用过程
+    （1）客户端（Client 服务的调用方）以本地调用方式调用服务
+    （2）客户端存根（Client stub 存放服务端的地址消息，再将当前客户端的请求参数打包成网络消息，然后通过网络远程发送给服务方）接收到调用后，负责将方法、参数等组装成能够进行网络传输的消息体（将消息体对象序列化为二进制）
+    （3）客户端通过 Network Service 将消息发送到服务端（真正的服务提供者）
+    （4）服务端存根（Server stub 接收客户端发送过来的消息，将消息解包，并调用本地的方法）收到消息后进行解码（将消息对象反序列化）
+    （5）服务端存根（Server stub）根据解码结果调用本地的服务
+    （6）服务处理
+    （7）本地服务执行并将结果返回给服务端存根（Server stub）
+    （8）服务端存根（Server stub）将返回结果打包成消息（将结果消息对象序列化）
+    （9）服务端（Server）通过 Network Service 将消息发送到客户端
+    （10）客户端存根（Client stub）接收到结果消息，并进行解码（将结果消息发序列化）
+    （11）客户端（Client）得到最终结果
+Dubbo的三大核心能力
+    （1）面向接口的远程方法调用
+    （2）智能容错和负载均衡
+    （3）服务自动注册和发现。
+注解说明：
+    （1）@DubboService
+        定义好 Dubbo 服务接口后，提供服务接口的实现逻辑，并用 @DubboService 注解标记，就可以实现 Dubbo 的服务暴露
+    （2）@DubboReference
+        注解将自动注入为 Dubbo 服务代理实例
+    （3）@EnableDubbo
+        开启Dubbo
+
+
+
+RPC框架的问题
+1、通讯问题
+    主要是通过在客户端和服务器之间建立TCP连接，远程过程调用的所有交换的数据都在这个连接里传输。
+    连接可以是按需连接，调用结束后就断掉，也可以是长连接，多个远程过程调用共享同一个连接
+2、寻址问题
+    A服务器上的应用怎么告诉底层的RPC框架，如何连接到B服务器（如主机或IP地址）以及特定的端口，方法的名称名称是什么，这样才能完成调用。
+3、序列化和反序列化
+    通过底层的网络协议如TCP传递到B服务器，由于网络协议是基于二进制的，内存中的参数的值要序列化成二进制的形式，也就是序列化（Serialize）或编组（marshal），通过寻址和传输将序列化的二进制发送给B服务器。
+
+1、服务调用
+    （1）版本：2.7.7
+    （2）常用注解
+        @EnableDubbo
+            @EnableDubboConfig
+                @Import({DubboComponentScanRegistrar.class})
+                作用是把配置文件中的配置组装成各种xxxConfig对象。
+                    DubboConfigConfiguration.Single.class
+                    DubboConfigConfiguration.Multiple.class
+
+            @DubboComponentScan
+                @Import({DubboConfigConfigurationRegistrar.class})
+                扫描@DubboService与@DubboReference注解，并进行处理
+                @Service的扫描是由@DubboComponentScan中通过@Import导入的DubboComponentScanRegistrar来处理的
+
+        @DubboService(version = "1.0.0", group = "test-group")
+            （1）作用：
+                @DubboService注解是Dubbo框架中的一个注解，用于标记一个类或接口作为Dubbo服务提供者，并将其发布为一个Dubbo服务
+                1、标记服务提供者：通过在类或接口上添加@DubboService注解，将其标记为一个Dubbo服务提供者。这样Dubbo框架就知道该类或接口中的方法可以被远程调用。
+                2、自动暴露服务：@DubboService注解告诉Dubbo框架需要将标记的类或接口作为服务提供者进行暴露。在应用启动时，Dubbo框架会自动处理服务的发布过程，包括协议选择、端口绑定、注册中心注册等。
+                3、透明远程调用：通过@DubboService注解暴露的服务可以被服务消费者远程调用，无需关心底层的远程调用和通信细节。Dubbo框架会自动将消费者的请求转发给服务提供者，并将结果返回给消费者。
+                4、提供配置选项：@DubboService注解提供了一些属性，可以配置服务提供者的行为，如超时时间、最大并发数、负载均衡策略等。通过这些属性的配置，可以调整服务提供者的行为以满足需求。
+            （2）过程
+                扫描@Service标注的类，得到一个BeanDefinition，一个Spring中的Bean
+                在扫描完了之后，会针对所得到的每个BeanDefinition，都会额外的再生成一个ServiceBean类型的Bean对象。这个ServiceBean通过Ref属性与Spring中的Bean联系起来！
+                ServiceBean
+                    ref，表示服务的具体实现类
+                    interface，表示服务的接口
+                    parameters，表示服务的参数（@Service注解中所配置的信息）
+                    application，表示服务所属的应用
+                    protocols，表示服务所使用的协议
+                    registries，表示服务所要注册的注册中心
+                ServiceBean还实现了ApplicationListener<ContextRefreshedEvent>，意味着在spring容器启动完毕后，会调用onApplicationEvent方法向注册中心暴露服务
+
+            （2）使用方式：
+                （1）类上
+                    @DubboService
+                    public class DemoServiceImpl implements DemoService {
+                    }
+                （2）BeanMethod上使用@DubboService
+                    @Configuration
+                    public class ReferenceConfig {
+                        @Bean
+                        @DubboService
+                        public DemoService demoServiceImpl() {
+                           return new DemoServiceImpl();
+                        }
+                    }
+        @DubboReference
+            （1）作用
+                @DubboReference注解的作用是在Dubbo框架中标记对服务提供者的引用，并将其注入到当前类中
+                1、标记服务引用：通过在服务消费者的字段或方法上添加@DubboReference注解，标记了对某个服务提供者的引用
+                2、自动引用服务：@DubboReference注解告诉Dubbo框架需要引用一个远程服务。在应用启动时，Dubbo框架会自动处理远程服务的引用过程，包括负载均衡、服务发现、连接管理等。
+                3、透明远程调用：通过@DubboReference注解引用的服务，可以像调用本地方法一样调用远程服务，无需关心底层的远程调用和通信细节。Dubbo框架会自动处理远程调用的过程，将请求发送给远程服务提供者，并返回结果给服务消费者。
+                4、提供配置选项：@DubboReference注解提供了一些属性，可以配置服务引用的行为，如超时时间、重试次数、负载均衡策略等。通过这些属性的配置，可以调整服务引用的行为以满足需求。
+                @DubboReference注解的作用是简化Dubbo服务的引用过程，使得服务消费者可以方便地引用远程服务，并通过Dubbo框架实现透明的远程调用。
+            （2）过程
+                寻找注入点
+                注入点赋值
+            （3）详细过程
+                得到当前所引入服务对应的ServiceBean的beanName（源码中叫referencedBeanName）
+                根据@Reference注解的所有信息+属性接口类型得到一个referenceBeanName
+                如果referenceBeanCache没有ReferenceBean对象，则创建一个ReferenceBean，有则获取
+                根据referencedBeanName（ServiceBean的beanName）判断Spring容器中是否存在该bean
+                ①：如果存在,则给ReferenceBean的ref属性(代理对象)取一个别名，别名为referenceBeanName。
+                ②：如果不存在 ，则将创建出来的ReferenceBean注册到Spring容器中，由于ReferenceBean是一个FactoryBean，后续可以通过getObject()方法获取到ref代理对象
+                通过referenceBean.get()方法返回一个ref代理对象，作为注入点赋值对象！
+
+
+        @Import
+                    注解可以实现导入第三方的包的bean到容器的功能，配合注解Configuration一起使用， 可以实现一个注解就可以注入第三方bean的能力，也就是EnableDubbo这一个注解可以标识dubbo启动与否的原理。
+    代码实现
+        服务端：
+             @DubboService：暴露接口
+
+2、负载均衡
+    负载均衡是指在集群中，将多个数据请求分散在不同单元上进行执行，主要为了提高系统容错能力和加强系统对数据的处理能力。
+    类结构
+        抽象类：AbstractLoadBalance-》LoadBalance->SPI
+        LoadBalance 接口中 select() 方法的核心功能是根据传入的 URL 和 Invocation，以及自身的负载均衡算法，从 Invoker 集合中选择一个 Invoker 返回。
+
+        （1）RandomLoadBalance	随机算法，根据权重设置随机的概率
+            默认方式，根据权重分配各个 Invoker 随机选中的比例
+            加权随机策略并非一定按照比例被选到，理论上调用次数越多，分布的比例越接近权重所占的比例。
+        （2）LeastActiveLoadBalance	最少活跃数算法，指请求数和完成数之差，使执行效率高的服务接收更多请求
+            活跃数是一个 Invoker 正在处理的请求的数量，当 Invoker 开始处理请求时，会将活跃数加 1，完成请求处理后，将相应 Invoker 的活跃数减 1
+        （3）RoundRobinLoadBalance	加权轮询算法，根据权重设置轮询比例
+            基于权重来决定轮询的比例。
+                普通轮询会将请求均匀的分布在每个节点，但不能很好调节不同性能服务器的请求处理，所以加权负载均衡来根据权重在轮询机制中分配相对应的请求比例给每台服务器。
+                每个 Invoker 都有一个 current 值，初始值为自身权重。在每个 Invoker 中current = current + weight。遍历完 Invoker 后，current 最大的那个 Invoker 就是本次选中的 Invoker。选中 Invoker 后，将本次 current 值计算current = current - totalWeight。
+        （4）ConsistentHashLoadBalance	Hash 一致性算法，相同请求参数分配到相同提供者
+            一致性 Hash 负载均衡策略（ConsistentHashLoadBalance）是让参数相同的请求分配到同一机器上。
+            把每个服务节点分布在一个环上，请求也分布在环形中。以请求在环上的位置，顺时针寻找环上第一个服务节点
+            为避免请求散列不均匀，dubbo 中会将每个 Invoker 再虚拟多个节点出来，使得请求调用更加均匀
+                先创建好虚拟节点，虚拟节点保存在 TreeMap 中。
+                TreeMap 的 key 为配置的参数先进行 md5 运算，然后将 md5 值进行 hash 运算。
+                TreeMap 的 value 为被选中的 Invoker。
+                最后请求时，计算参数的 hash 值，去从 TreeMap 中获取 Invoker。
+        （5）ShortestResponseLoadBalance	基于最短响应时间的算法
+            它实现了最短响应时间的负载均衡算法，也就是从多个 Provider 节点中选出调用成功的且响应时间最短的 Provider 节点。
+            不过满足该条件的 Provider 节点可能有多个，所以还要再使用随机算法进行一次选择，得到最终要调用的 Provider 节点。
+

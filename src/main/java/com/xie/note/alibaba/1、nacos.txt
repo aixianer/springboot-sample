@@ -148,3 +148,42 @@
                 prefix:spring.application.name或者spring.cloud.nacos.config.prefix
                 spring.profile.active：当前环境对应的profile
                 extension:扩展名
+    （4）配置更新生效步骤
+        1.在nacos上修改配置。
+        2.nacos客户端中ClientWorker会每隔10ms异步读取一次配置中心文件md5值。
+        3.和本地md5值比较，有变化的从服务器拉取。
+        4.将文件保存/缓存到本地。
+        5.通知NacosContextRefresher配置文件有变化。
+        6.NacosContextRefresher判断是否需要更新配置。
+        7.发送事件通知ContextRefresher去更新。
+        8.这里是更新配置的关键步骤。
+        9.准备一份before配置，然后通过构建新的Environment的方式拿到新的配置， 接着比较变化，得到有变化的keys。
+        10.构建Environment时会去读取配置文件，文件优先读本地，如果本地没有通过Http请求服务商。
+        11.构建NacosPropertiesSource，并重新生成ConfigurationProperties对象。
+        12.通知RefreshScope去更新。
+        13.销毁scope='refresh'的bean。
+        14.通知bean容器去构建新的bean（懒加载）。
+        15.将属性（@Value注解）注入到新的bean。
+    （5）代码配置
+        bootstrap.yml
+            spring:
+              application:
+                name: order-service
+              profiles:
+                active: dev
+              cloud:
+                nacos:
+                  discovery:
+                    server-addr: 10.0.10.7:8848
+                  config:
+                    server-addr: 10.0.10.7:8848
+                    namespace: 982725ec-fb4b-465c-b76e-96207670129e
+                    file-extension: yaml
+        启动类
+            @EnableDiscoveryClient
+        使用类
+            @RefreshScope
+            class
+
+            @Value("${data.formatter}")
+            private String formatter;
