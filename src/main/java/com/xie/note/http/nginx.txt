@@ -1,0 +1,212 @@
+是什么
+    Nginx (engine x) 是一个高性能的HTTP和反向代理web服务器，同时也提供了IMAP/POP3/SMTP服务。
+    Nginx是一款轻量级的Web 服务器/反向代理服务器及电子邮件（IMAP/POP3）代理服务器，在BSD-like 协议下发行。其特点是占有内存少，并发能力强
+    Nginx 是高性能的 HTTP 和反向代理的web服务器，处理高并发能力是十分强大的，能经受高负 载的考验,有报告表明能支持高达 50,000 个并发连接数。
+    Nginx支持热部署，启动简单，可以做到7*24不间断运行。
+反向代理
+    客户端对代理是无感知的，客户端不需要任何配置就可以访问，我们只需要把请求发送给反向代理服务器，
+    由反向代理服务器去选择目标服务器获取数据后，再返回给客户端，
+    此时反向代理服务器和目标服务器对外就是一个服务器，暴露的是代理服务器地址，隐藏了真实服务器的地址。
+负载均衡
+    分摊到多个操作单元上进行执行
+    方式：
+        轮询法（默认方法）：
+            每个请求按时间顺序逐一分配到不同的后端服务器，
+        weight权重模式（加权轮询）：
+            指定轮询几率，weight和访问比率成正比，用于后端服务器性能不均的情况。
+        ip_hash：
+            每个请求按访问ip的hash结果分配，这样每个访客固定访问一个后端服务器，可以解决session的问题
+组成部分
+    worker_processes  1;
+
+    events {
+        worker_connections  1024;
+    }
+
+    http {
+        include       mime.types;
+        default_type  application/octet-stream;
+        sendfile        on;
+        keepalive_timeout  65;
+
+        server {
+            listen       80;
+            server_name  localhost;
+
+            location / {
+                root   html;
+                index  index.html index.htm;
+            }
+            error_page   500 502 503 504  /50x.html;
+            location = /50x.html {
+                root   html;
+            }
+        }
+    }
+
+    1、全局块
+        从配置文件开始到 events 块之间的内容，主要会设置一些影响nginx 服务器整体运行的配置指令，
+        主要包括配 置运行 Nginx 服务器的用户（组）、允许生成的 worker process 数，进程 PID 存放路径、日志存放路径和类型以 及配置文件的引入等。
+            user  root;
+            worker_processes  auto;
+            worker_cpu_affinity 00000001 00000010 00000100 00001000 00010000 00100000 01000000 10000000;
+            worker_rlimit_nofile 65535;
+            error_log  /var/log/nginx/error.log warn;
+            pid        /var/run/nginx.pid;
+
+            user 来指定Nginx Worker进程运行用户以及用户组，默认由nobody账号运行。
+            worker_processes来指定了Nginx要开启的子进程数。每个Nginx进程平均耗费10M~12M内存。根据经验，一般指定1个进程就足够了，如果是多核CPU，建议指定和CPU的数量一样的进程数即可。我这里写2，那么就会开启2个子进程，总共3个进程。
+            error_log用来定义全局错误日志文件。日志输出级别有debug、info、notice、warn、error、crit可供选择，其中，debug输出日志最为最详细，而crit输出日志最少。
+            pid用来指定进程id的存储文件位置。
+            worker_rlimit_nofile用于指定一个nginx进程可以打开的最多文件描述符数目，这里是65535，需要使用命令“ulimit -n 65535”来设置。
+
+    2、events块
+        主要影响 Nginx 服务器与用户的网络连接，
+        常用的设置包括是否开启对多work process下的网络连接进行序列化，是否允许同时接收多个网络连接，选取哪种事件驱动模型来处理连接请求，每个word process可以同时支持的最大连接数等
+        events {
+            use epoll;
+            worker_connections  65535;
+        	accept_mutex off;
+        	multi_accept off;
+        }
+        use用来指定Nginx的工作模式。Nginx支持的工作模式有select、poll、kqueue、epoll、rtsig和/dev/poll。其中select和poll都是标准的工作模式，kqueue和epoll是高效的工作模式，不同的是epoll用在Linux平台上，而kqueue用在BSD系统中,对于Linux系统，epoll工作模式是首选。
+        worker_connections用于定义Nginx每个进程的最大连接数，即接收前端的最大请求数，默认是1024。
+            最大客户端连接数由worker_processes和worker_connections决定，即Max_clients=worker_processes*worker_connections
+            在作为反向代理时，Max_clients变为：Max_clients = worker_processes * worker_connections/4
+
+    3、http块
+         负责HTTP服务器相关属性的配置，它里面的server和upstream子模块，至关重要
+         Nginx 服务器配置中最频繁的部分，代理、缓存和日志定义等绝大多数功能和第三方模块的配置都在这里。、
+        （1）http全局块
+            http全局块配置的指令包括文件引入、MIME-TYPE 定义、日志自定义、连接超时时间、单链接请求数上限等。
+                include 来用设定文件的mime类型,类型在配置文件目录下的mime.type文件定义，来告诉nginx来识别文件类型。
+                default_type设定了默认的类型为二进制流，也就是当文件类型未定义时使用这种方式
+                log_format用于设置日志的格式，和记录哪些参数，这里设置为main，刚好用于access_log来纪录这种类型。
+                access_log用来纪录每次的访问日志的文件地址，后面的main是日志的格式样式，对应于log_format的main。
+                sendfile参数用于开启高效文件传输模式。将tcp_nopush和tcp_nodelay两个指令设置为on用于防止网络阻塞。
+                keepalive_timeout设置客户端连接保持活动的超时时间。在超过这个时间之后，服务器会关闭该连接。
+        （2）server块
+            每个http块可以包括多个server块，而每个 server 块就相当于一个主机。
+            而每个server块也分为全局server块，以及可以同时包含多个locaton 块。
+                （1）全局server块
+                    监听配置和主机名称或者IP配置
+                （2）location块
+                    一个 server 块可以配置多个 location 块。
+                    基于 Nginx 服务器接收到的请求字符串，对主机名称（也可以是IP别名）之外的字符串（例如 前面的 /uri-string）进行匹配，对特定的请求进行处理
+                    地址定向、数据缓 存和应答控制等功能，还有许多第三方模块的配置也在这里进行。
+                    location匹配规则:
+                        1、= ：用于不含正则表达式的 uri 前，要求请求字符串与 uri 严格匹配，如果匹配 成功，就停止继续向下搜索并立即处理该请求。
+                        2、~：用于表示 uri 包含正则表达式，并且区分大小写。
+                        3、~*：用于表示 uri 包含正则表达式，并且不区分大小写。
+                        4、^~：用于不含正则表达式的 uri 前，要求 Nginx 服务器找到标识 uri 和请求字 符串匹配度最高的 location 后，立即使用此 location 处理请求，而不再使用 location 块中的正则 uri 和请求字符串做匹配。
+                    proxy_pass:当前请求代理到URL参数指定的服务器上,URL可以是主机名或者IP地址加PORT的形式
+                    proxy_method 配置项表示转发时的协议方法名:
+                    proxy_hide_header Nginx会将上游服务器的响应转发给客户端,但默认不转发HTTP头部字段
+                         使用proxy_hide_header可以指定任意头部不能被转发
+                            proxy_hide_header Cache-Control;
+                            proxy_hide_header MicrosoftOfficeWebServer;
+                    proxy_pass_header 功能与 proxy_hide_header相反,是设置哪些头部允许转发.
+                    proxy_pass_request_body
+                        proxy_pass_request_body off|on;
+                            默认 on
+                            配置块 http server location;
+                            确定上游服务器是否向上游服务器转发HTTP包体
+                    proxy_pass_request_header
+                        proxy_pass_request_header on | off;
+                        默认on
+                        配置块 http server location
+                        确定是否转发HTTP头部
+
+
+            listen用于指定虚拟主机的服务端口。
+            server_name用来指定IP地址或者域名，多个域名之间用空格分开。
+            root 表示在这整个server虚拟主机内，全部的root web根目录。
+            index 全局定义访问的默认首页地址。注意要和locate {}下面定义的区分开来。
+            charset用于设置网页的默认编码格式。
+            access_log用来指定此虚拟主机的访问日志存放路径，最后的main用于指定访问日志的输出格式。
+            location /表示匹配访问根目录。
+            root指令用于指定访问根目录时，虚拟主机的web目录，这个目录可以是相对路径
+
+        （3）负载均衡部分
+            （1）轮询（默认）
+            （2）weight
+                upstream myserver {
+                    server 208.208.128.122:8081 weight=10;   #  在这儿
+                    server 208.208.128.122:8082 weight=10;
+                }
+                server {
+                    listen       80;
+                    server_name  208.208.128.122;
+                    location / {
+                        root   html;
+                        proxy_pass   http://myserver;
+                        index  index.html index.htm;
+                }
+            （3）ip_hash
+                upstream myserver {
+                    ip_hash;
+                    server 208.208.128.122:8081 ;
+                    server 208.208.128.122:8082 ;
+                }
+                server {
+                    listen       80;
+                    server_name  208.208.128.122;
+                    location / {
+                        root   html;
+                        proxy_pass   http://myserver;
+                        index  index.html index.htm;
+                }
+
+动静分离：
+    动态请求跟静态请求分开，可以理解成使用 Nginx 处理静态页面，Tomcat 处理动态页面
+    两种方式：
+        一种是纯粹把静态文件独立成单独的域名，放在独立的服务器上，也是目前主流推崇的方案；
+        另外一种方法就是动态跟静态文件混合在一起发布，通过 nginx 来分开。
+    nginx实现：通过 location 指定不同的后缀名实现不同的请求转发
+
+高可用：
+    大体流程：
+        （1）需要两台nginx 服务器
+        （2）需要keepalived
+        （3）需要虚拟IP
+    详细步骤：
+        需要两台服务器 208.208.128.122 和 208.208.128.85
+        在两台服务器安装 nginx(流程最上面有)
+        在两台服务器安装keepalived：yum install keepalived -y
+        修改/etc/keepalived/keepalivec.conf 配置文件
+            virtual_ipaddress {
+                208.208.128.50 // VRRP H 虚拟地址
+            }
+        在/usr/local/src 添加检测脚本
+            #!/bin/bash
+            A=`ps -C nginx –no-header |wc -l`
+            if [ $A -eq 0 ];then
+                /usr/local/nginx/sbin/nginx
+                sleep 2
+                if [ `ps -C nginx --no-header |wc -l` -eq 0 ];then
+                    killall keepalived
+                fi
+            fi
+         开启nginx 和 keepalived
+
+nginx的原理
+    1、master和worker
+        nginx 启动后，是由两个进程组成的。master（管理者）和worker（工作者）。
+        一个nginx 只有一个master。但可以有多个worker
+        过来的请求由master管理，worker进行争抢式的方式去获取请求。
+    2、master和worker优点
+        每个 worker 进程来说，独立的进程，不需要加锁，所以省掉了锁带来的开销， 同时在编程以及问题查找时，也会方便很多。
+        可以使用 nginx –s reload 热部署，利用 nginx 进行热部署操作
+        采用独立的进程，可以让互相之间不会 影响，一个进程退出后，其它进程还在工作，服务不会中断，master 进程则很快启动新的 worker 进程。当然，worker 进程的异常退出，肯定是程序有 bug 了，异常退出，会导致当 前 worker 上的所有请求失败，不过不会影响到所有请求，所以降低了风险。
+    3. 设置多少个 worker
+        采用了 io 多路复用机制，每个 worker 都是一个独立的进程，但每个进 程里只有一个主线程，通过异步非阻塞的方式来处理请求， 即使是千上万个请求也不在话 下
+        每个 worker 的线程可以把一个 cpu 的性能发挥到极致
+        所以 worker 数和服务器的 cpu 数相等是最为适宜的。设少了会浪费 cpu，设多了会造成 cpu 频繁切换上下文带来的损耗。
+    4、连接数 worker_connection
+        发送请求，占用了 woker 的几个连接数：
+            2 或者 4 个
+        nginx 有一个 master，有四个 woker，每个 woker 支持最大的连接数 1024，支持的 最大并发数是多少？
+            静态访问： worker_connections * worker_processes /2，
+            反向代理：worker_connections * worker_processes/4
+        如果是支持 http1.1 的浏览器每次访问要占两个连接
+        反向代理服务器，每个并发会建立与客户端的连接和与后端服 务的连接，会占用两个连接

@@ -1,0 +1,127 @@
+
+Collection
+    List
+        ArrayList
+            ArrayList集合底层是数组，怎么优化？
+                尽可能少的扩容。因为数组扩容效率比较低，建议在使用ArrayList集合的时候预估计元素的个数，给定一个初始化容量。
+            数组优点：
+                检索效率比较高。（每个元素占用空间大小相同，内存地址是连续的，知道首元素内存地址，
+                然后知道下标，通过数学表达式计算出元素的内存地址，所以检索效率最高。）
+            数组缺点：
+                随机增删元素效率比较低。
+                另外数组无法存储大数据量。（很难找到一块非常巨大的连续的内存空间。）
+            向数组末尾添加元素，效率很高，不受影响。
+            其他：
+                ArrayList中维护了一个Object类型的数组
+                transient Object[ ] elementData; //transient 短暂的 表示该属性不会被序列化
+                当创建ArrayList对象时，如果使用的是无参构造器，则初始elementData容量为0 ，第一次添加则扩容elementData为10，如需要再次扩容，则扩容elementData为1.5 倍；
+                如果使用的是指定大小的构造器，则初始扩容elementData容量为指定大小，如果需要再次扩容，则直接扩容为1.5倍；
+        LinkedList
+            链表的优点：
+                由于链表上的元素在空间存储上内存地址不连续。
+                所以随机增删元素的时候不会有大量元素位移，因此随机增删效率较高。
+                在以后的开发中，如果遇到随机增删集合中元素的业务比较多时，建议
+                使用LinkedList。
+            链表的缺点：
+                不能通过数学表达式计算被查找元素的内存地址，每一次查找都是从头
+                节点开始遍历，直到找到为止。所以LinkedList集合检索/查找的效率
+                较低。
+            其他：
+                没有初始化容量
+                LinkedList底层维护了一个双向链表；
+                LinkedList中维护了两个属性first和last分别指向 首节点 和 尾节点；
+                每个节点（Node对象），里面又维护了prev、next、item三个属性，其中通过prev指向前一个，通过next指向后一个节点，最终完成双向链表；
+        Vector
+            1、底层也是一个数组。
+            2、初始化容量：10
+            3、怎么扩容的？
+                扩容之后是原容量的2倍。
+                10--> 20 --> 40 --> 80
+            4、Vector中所有的方法都是线程同步的，都带有synchronized关键字，
+            是线程安全的。效率比较低，使用较少了。
+            5、怎么将一个线程不安全的ArrayList集合转换成线程安全的呢？
+                使用集合工具类：
+                    java.util.Collections;
+                    java.util.Collection 是集合接口。
+                    java.util.Collections 是集合工具类。
+            Collections.synchronizedList();//将及格转换为线程安全的。
+    Set
+        不允许包含重复的值
+        没有索引（就不能使用普通的for循环进行遍历）
+        哈希值就是JDK根据对象地址 或者 字符串 或者数值 通过自己内部的计算出来的一个整数类型数据
+        HashSet
+            底层结构是“哈希表”
+            集合对于读写顺序不做保证
+            没有索引
+            Set集合中的内容不能重复
+            可以存放 null 值，但是只能有一个null；
+            HashSet 底层其实是HashMap，HashMap底层是（数组+链表+红黑树）
+            添加元素过程：
+                添加一个元素时，先得到 hash值-> 转成->索引值 ；
+                找到存储数据表 table ，看这个索引位置是否已经存放的所有元素；
+                如果没有，直接加入；
+                如果有，调用 equals 比较，如果相同，就放弃添加，如果不相同，则添加到最后；
+                在Java8中，如果一条链表的元素个数达到 TREEIFY_THRESHOLD(默认是8)，并且table大小>=MIN_TREEIFY_CAPACITY(默认是64)，就会进行树化（红黑树）；
+        LinkedHashSet
+            LinkedHashSet是哈希表和链表实现的Set接口，具有可预测的读写顺序。
+            有链表来保证元素有序
+            有哈希表来保证元素的唯一性
+            其他：
+                LinkedHashSet 是 HashSet 的子类，继承HashSet，实现了Set接口；
+                LinkedHashSet 底层是一个 LinkedHashMap，底层维护了一个 数组+双向链表；
+                LinkedHashSet 根据元素的 hashCode 值来决定元素的存储位置，同时使用链表维护元素的次序，这使得元素看起来是以插入顺序保存的；
+                LinkedHashSet 不允许添加重复元素；
+        TreeSet
+            TreeSet集合底层实际上是一个TreeMap
+            TreeMap集合底层是一个二叉树。
+            放到TreeSet集合中的元素，等同于放到TreeMap集合key部分了。
+            TreeSet集合中的元素：无序不可重复，但是可以按照元素的大小顺序自动排序。
+            其他：
+                TreeSet的独特之处在于它的构造器可以传入比较器，所以TreeSet常用来排序，
+    Map
+        Map为双列集合，Set集合的底层也是Map，只不过有一列是常量所占，只使用到了一列
+        Hashtable
+            数组 + 链表 实现的一种数据结构
+            哈希表的构造方法的参数是一个长度为16个元素的数组，通过哈希值 % 16 的值，作为头节点在数组中选择对应的位置，就形成了哈希表。
+            线程安全，性能不如ConcurrentHashMap
+            数据结构：数组、链表
+            其他：
+                1.底层有数组 Hashtables$Entry[] 初始化大小为1；
+                2.临界值 threshold 8 = 11 * 0.75；
+                3.扩容机制：执行方法 addEntry(hash,key,value,index);添加 K-V，封装到Entry；
+                4.当 if(count >= threshold) 满足就扩容；
+                5.按照 int newCapacity = (oldCapacity << 1)+1; 扩容
+        HashMap
+            1、无序，不可重复。
+                为什么无序？ 因为不一定挂到哪个单向链表上。
+                不可重复是怎么保证的？ equals方法来保证HashMap集合的key不可重复。
+                如果key重复了，value会覆盖。
+            2、放在HashMap集合key部分的元素其实就是放到HashSet集合中了。
+                所以HashSet集合中的元素也需要同时重写hashCode()+equals()方法。
+            3、HashMap集合的默认初始化容量是16，默认加载因子是0.75
+                这个默认加载因子是当HashMap集合底层数组的容量达到75%的时候，数组以二叉树开始扩容。
+            数据结构：数据、链表、红黑树
+            其他：
+                HashMap 底层维护了 Node 类型的数组 table ，默认为 null；
+                当创建对象时，将加载因子（loadfactor）初始化为0.75；
+                当添加 key-value 时，通过 key 的哈希值得到在 table的索引，然后判断该索引处是否有元素，如果没有元素则直接添加。如果该索引处有元素，继续判断该元素的 key 是否和准备加入的 key 相等，如果相等，则直接替换 value；如果不相等，则需要判断是树结构还是链表结构，做出相应处理。如果添加时发现容量不够，则需要扩容。（扩容机制和HashSet完全一样，因为HashSet底层就是HashMap）
+                第一次添加，会扩容 table 容量为16，临界值（threshold）为12；
+                以后再扩容，会扩容 table 容量为原来的2倍，临界值为原来的2倍，即24，以此类推；
+                在Java8中，如果一条链表的元素个数超过 TREEIFY_THRESHOLD（默认是8），并且 table的大小>= MIN_CAPACITY（默认是64），就会进行树化（红黑树）
+        注意：
+            1.向Map集合中存，以及从Map集合中取，都是先调用key的hashCode方法，然后再调用equals方法！
+                equals方法有可能调用，也有可能不调用。
+                拿put(k,v)举例，什么时候equals不会调用？ k.hashCode()方法返回哈希值， 哈希值经过哈希算法转换成数组下标。 数组下标位置上如果是null，equals不需要执行。 拿get(k)举例，什么时候equals不会调用？ k.hashCode()方法返回哈希值， 哈希值经过哈希算法转换成数组下标。 数组下标位置上如果是null，equals不需要执行。
+            4.假设将所有的hashCode()方法返回值固定为某个值，那么会导致底层哈希表变成了 纯单向链表。
+            这种情况我们成为：散列分布不均匀。
+            什么是散列分布均匀？
+            假设有100个元素，10个单向链表，那么每个单向链表上有10个节点，这是最好的， 是散列分布均匀的。假设将所有的hashCode()方法返回值都设定为不一样的值，可以吗，有什么问题？ 不行，因为这样的话导致底层哈希表就成为一维数组了，没有链表的概念了。 也是散列分布不均匀。散列分布均匀需要你重写hashCode()方法时有一定的技巧。
+        TreeMap
+            数据结构：红黑树
+        LinkedHashMap:
+            数据结构：数组、链表、红黑树、双重链接列表
+        Properties
+            Properties是一个Map集合，继承Hashtable，Properties的key和value都是String类型。
+            Properties被称为属性类对象。
+            Properties是线程安全的。
+
