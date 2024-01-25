@@ -267,12 +267,133 @@
         当目前执行线程的总数大于或等于核心线程，并且缓存队列已满，同时此时线程总数小于线程池的最大大小，那么创建新线程，加入线程池中，协助处理新的任务。
         当所有线程都在执行，线程池大小已经达到上限，并且缓存队列已满时，就rejectHandler拒绝新的任务
 ThreadLocal
+    产生原因
+        每个线程都会有属于自己的本地内存，在堆（也就是上图的主内存）中的变量在被线程使用的时候会被复制一个副本线程的本地内存中，当线程修改了共享变量之后就会通过JMM管理控制写会到主内存中。
+        很明显，在多线程的场景下，当有多个线程对共享变量进行修改的时候，就会出现线程安全问题，即数据不一致问题。
+            常用的解决方法是对访问共享变量的代码加锁（synchronized或者Lock）。
+            但是这种方式对性能的耗费比较大。
+    定义
+        ThreadLocal叫做线程变量，意思是ThreadLocal中填充的变量属于当前线程，该变量对其他线程而言是隔离的，也就是说该变量是当前线程独有的变量。
+        ThreadLocal为变量在每个线程中都创建了一个副本，那么每个线程可以访问自己内部的副本变量。
+        特点：
+            因为每个 Thread 内有自己的实例副本，且该副本只能由当前 Thread 使用
+            既然每个 Thread 有自己的实例副本，且其它 Thread 不可访问，那就不存在多线程间共享的问题。
+        每个使用该变量的线程都会初始化一个完全独立的实例副本
+        ThreadLocal 变量通常被private static修饰。当一个线程结束时，它所使用的所有 ThreadLocal 相对的实例副本都可被回收
+        总结：
+            ThreadLocal 适用于每个线程需要自己独立的实例且该实例需要在多个方法中被使用，也即变量在线程间隔离而在方法或类间共享的场景
+    和synchronized的区别
+        都可以解决线程并发的问题
+        Synchronized用于线程间的数据共享，而ThreadLocal则用于线程间的数据隔离。
+        Synchronized是利用锁的机制，使变量或代码块在某一时该只能被一个线程访问。
+            而ThreadLocal为每一个线程都提供了变量的副本，使得每个线程在某一时间访问到的并不是同一个对象，这样就隔离了多个线程对数据的数据共享。
+            而Synchronized却正好相反，它用于在多个线程间通信时能够获得数据共享。
+        synchronized同步机制采用了时间换空间的方式，只提供一份变量，让不同线程排队访问（临界区排队）；
+            ThreadLocal，采用空间换时间的方式，为每一个线程都提供一份变量的副本，从而实现同时访问而互不相干扰
+    实现：
+        threadlocl是作为当前线程中属性ThreadLocalMap集合中的某一个Entry的key值Entry（threadlocl,value），
+            虽然不同的线程之间threadlocal这个key值是一样，
+            但是不同的线程所拥有的ThreadLocalMap是独一无二的，
+            也就是不同的线程间同一个ThreadLocal（key）对应存储的值(value)不一样，从而到达了线程间变量隔离的目的，但是在同一个线程中这个value变量地址是一样的。
+            ThreadLocal作为key，使用我们设置的value作为value
+    常用方法
+        set
+            set赋值的时候首先会获取当前线程thread,并获取thread线程中的ThreadLocalMap属性。
+            如果map属性不为空，则直接更新value值，如果map为空，则实例化threadLocalMap,并将value值初始化
+        ThreadLocalMap
+            ThreadLocalMap是ThreadLocal的内部静态类，而它的构成主要是用Entry来保存数据，而且还是继承的弱引用。
+                在Entry内部使用ThreadLocal作为key，使用我们设置的value作为value。
+        get
+        remove
+            直接将ThreadLocal 对应的值从当前相差Thread中的ThreadLocalMap
+            ThreadLocalMap 中使用的 key 为 ThreadLocal 的弱引用，弱引用的特点是，如果这个对象只存在弱引用，那么在下一次垃圾回收的时候必然会被清理掉。
+            所以如果 ThreadLocal 没有被外部强引用的情况下，在垃圾回收的时候会被清理掉的，这样一来 ThreadLocalMap中使用这个 ThreadLocal 的 key 也会被清理掉。但是，value 是强引用，不会被清理，这样一来就会出现 key 为 null 的 value。
+            如果没有将ThreadLocal内的变量删除（remove）或替换，它的生命周期将会与线程共存。
+                通常线程池中对线程管理都是采用线程复用的方法，在线程池中线程很难结束甚至于永远不会结束，这将意味着线程持续的时间将不可预测，甚至与JVM的生命周期一致。
+    ThreadLocal与Thread，ThreadLocalMap之间的关系
+        ThreadLocalMap其实是Thread线程的一个属性值，而ThreadLocal是维护ThreadLocalMap
+    使用场景
+        两种：
+            每个线程需要有自己单独的实例
+                每个线程拥有自己实例，实现它的方式很多。例如可以在线程内部构建一个单独的实例。ThreadLocal可以以非常方便的形式满足该需求。
+            实例需要在多个方法中共享，但不希望被多线程共享
+                过方法间引用传递的形式实现。ThreadLocal 使得代码耦合度更低，且实现更优雅。
+        使用方法：
+            一般都会将ThreadLocal声明成一个静态字段
+                static ThreadLocal<Object> threadLocal = new ThreadLocal<>();
+                其中Object就是原本堆中共享变量的数据。
 
-concurrent
-集合
-atomic cas
+        （x）在重入方法中替代参数的显式传递
+            假如在我们的业务方法中需要调用其他方法，同时其他方法都需要用到同一个对象时，可以使用ThreadLocal替代参数的传递或者static静态全局变量。
+                这是因为使用参数传递造成代码的耦合度高，使用静态全局变量在多线程环境下不安全。
+                当该对象用ThreadLocal包装过后，就可以保证在该线程中独此一份，同时和其他线程隔离。
 
-voliate
+        （1）存储用户Session
+        （2）数据库连接，处理数据库事务
+        （3）数据跨层传递
+        （4）Spring使用ThreadLocal解决线程安全问题
+            绝大部分Bean都可以声明为singleton作用域。
+                就是因为Spring对一些Bean（如RequestContextHolder、TransactionSynchronizationManager、LocaleContextHolder等）中非线程安全的“状态性对象”采用ThreadLocal进行封装，
+                让它们也成为线程安全的“状态性对象”，
+                因此有状态的Bean就能够以singleton的方式在多线程中正常工作了。
+                一些非线程安全的变量以ThreadLocal存放，在同一次请求响应的调用线程中，所有对象所访问的同一ThreadLocal变量都是当前线程所绑定的。
+    ThreadLocal-内存泄漏
+        原因
+            （1）没有手动产数Entry
+                只要在使用完下 ThreadLocal ，调用其 remove 方法删除对应的 Entry ，就能避免内存泄漏。
+            （2）当前线程依然运行
+                由于ThreadLocalMap 是 Thread 的一个属性，被当前线程所引用，所以ThreadLocalMap的生命周期跟 Thread 一样长。
+                    如果threadlocal变量被回收，那么当前线程的threadlocal 变量副本指向的就是key=null, 也即entry(null,value),那这个entry对应的value永远无法访问到。
+                    实际私用ThreadLocal场景都是采用线程池，而线程池中的线程都是复用的，这样就可能导致非常多的entry(null,value)出现，从而导致内存泄露。
+            总之：
+                由于ThreadLocalMap 的生命周期跟 Thread 一样长，对于重复利用的线程来说，如果没有手动删除（remove()方法）对应 key 就会导致entry(null，value)的对象越来越多，从而导致内存泄漏．
+        Entry为什么是弱引用
+            ThreadLocalMap 中的set/getEntry 方法中，会对 key 为 null（也即是 ThreadLocal 为 null ）进行判断。
+                如果为 null 的话，那么会把 value 置为 null 的，这就意味着使用threadLocal , CurrentThread 依然运行的前提下．就算忘记调用 remove 方法，弱引用比强引用可以多一层保障；
+                弱引用的ThreadLocal会被回收．对应value在下一次 ThreadLocal 调用 get()/set()/remove() 中的任一方法的时候会被清除，从而避免内存泄漏．
+    如果正确使用ThreadLocal
+        （1）将ThreadLocal变量定义成private static的，这样的话ThreadLocal的生命周期就更长，由于一直存在ThreadLocal的强引用，所以ThreadLocal也就不会被回收，
+            也就能保证任何时候都能根据ThreadLocal的弱引用访问到Entry的value值，然后remove它，防止内存泄露
+        （2）每次使用完ThreadLocal，都调用它的remove()方法，清除数据。
+
+线程安全的集合
+    ConcurrentHashMap
+        ConcurrentHashMap和HashTable都是线程安全的集合，它们的不同主要是加锁粒度上的不同。
+            HashTable的加锁方法是给每个方法加上synchronized关键字，这样锁住的是整个Table对象。而ConcurrentHashMap是更细粒度的加锁
+    CopyOnWriteArrayList和CopyOnWriteArraySet
+        它们是加了写锁的ArrayList和ArraySet，锁住的是整个对象，但读操作可以并发执行
+    为什么没有ConcurrentArrayList，原因是无法设计一个通用的而且可以规避ArrayList的并发瓶颈的线程安全的集合类
+Atomic
+    包含了一些原子类，用于在多线程环境下进行线程安全的原子操作。
+        使用原子类可以避免使用锁和同步机制，从而减少了线程竞争和死锁的风险，并提高了多线程程序的性能和可伸缩性。
+    Atomic在多线程场合天然的具备线程安全。
+    基本类型：
+        （1）原子基本类型
+            AtomicInteger：整形原子类
+            AtomicLong：长整型原子类
+            AtomicBoolean ：布尔型原子类
+        （2）原子引用类型
+            AtomicReference：引用类型原子类
+        （3）原子数组类
+            AtomicIntegerArray：整形数组原子类
+            AtomicLongArray：长整形数组原子类
+            AtomicReferenceArray ：引用类型数组原子类
+        底层实现：
+            volatile和CAS算法
+    常见情况
+        （1）原子读取（Atomic Reads）：
+            "atomic"操作可以确保从共享变量中读取的值是最新的。这意味着一个线程在读取共享变量时，不会看到另一个线程修改变量后的旧值。
+        （2）原子写入（Atomic Writes）：
+            "atomic"操作可以确保将值写入共享变量时的原子性。这意味着一个线程在写入共享变量时，不会被其他线程的读取或写入操作中断或干扰。
+        （3）原子递增和递减（Atomic Increment/Decrement）：
+            某些编程语言提供原子递增和递减操作，以确保对共享计数器的操作是线程安全的。这些操作会在执行过程中阻止其他线程的干扰。
+    局限性：
+        尽管"atomic"操作提供了一定的线程安全性，但在处理复杂的并发场景时，仍然需要考虑其他因素，如数据竞争、同步机制的选择和使用正确的内存模型等。
+            此外，"atomic"操作并不能解决所有的线程安全问题，如死锁、竞争条件等。
+        在对于单个变量的复合操作（比如读-写）中可以代替锁的来保证操作的原子性和安全性，并且由于没有使用锁而有不错的性能，
+            但是对于多个变量的复合操作以及一批代码的原子性和安全性却无能为力，此时只能使用锁
+
+volatile
     作用：
         内存可见性：
             基于缓存一致性协议，当用voliate关键字修饰的变量改动时，cpu会通知其他线程，缓存已被修改，需要更新缓存。这样每个线程都能获取到最新的变量值。
