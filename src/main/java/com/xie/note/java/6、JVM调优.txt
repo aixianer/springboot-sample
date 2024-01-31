@@ -1,0 +1,520 @@
+
+性能调优
+    为什么要调优
+        随着用户和数据的增加，会暴露出一些缺陷。如突然卡顿、日志不输出、程序没响应，CPU负载高、内存占用高。
+            GC日志不断输出，且伴有频繁的FullGC，甚至出现OOM
+        这时候需要我们基于自己掌握我的JVM理论只是和分析工具对程序进行分析，找出性能缺陷，并改善既有代码
+    调优的依据
+        程序的运行日志
+            应用程序在执行的过程中输出的日志，如：异常堆栈信息等
+        GC日志
+            线程的程序，我们一般都会开启GC日志输出。通过分析GC日志能够掌握一些程序运行时的情况
+            例如：-XX:+PrintGCDetails -XX:+PrintGCDateStamps -Xloggc:/usr/log/myapp-gc.log
+        线程快照
+            jdk自带的jstack命令抓取正在运行的Java进程的线程快照，来分析进程中格个线程的运行情况。
+                如果有等待状态或者阻塞状态的线程，那么可以分析原因
+            例如：jstack 进程id > mythread.log
+        堆内存快照
+            Java对象都是存储在JVM管理的堆空间，即我们所说的堆内存。Java程序启动时，可以通过JVM参数指定运行的堆内存的大小。
+            程序异常时，我们可以使用jdk自带的工具或者第三方工具dump堆内存快照文件，分析堆内存的使用情况，找出占用内存空间的“罪魁祸首”
+            例如： jmap -dump:format=b,file=c:\myheap.hprof ${pid}
+            也可以指定程序启动时指定JVM参数使得在程序oom时候，自动导出应用程序的当前快照文件到指定路径
+            例如： -Xmx300m -Xms300m -Xmn110m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=D:\myheap.hprof
+    调优阶段
+        上线前
+            自测、压测来发现问题
+        上线后
+            程序的监控，如：业务日志的监控，机器资源使用监控，异常监控等手段发现问题
+    调优的方向
+        代码的正确性
+            自测，review代码
+        合理利用硬件资源
+            充分利用机器的资源，如线程池、批处理
+        合理进行JVM设置
+            通过对业务量评估，合理设置JVM运行时参数，充分利用物理资源。
+                根据实际运行情况，即使调整设置，满足用户需求
+    调优的步骤
+        发现问题
+            生产中，我们可以通过监控系统，或者手动查看日志发现问题。
+            如CPU高，GC频繁，甚至OOM；或者程序响应慢，各种超时，甚至线程死锁
+        排查问题
+            使用命令行工具jstack、jmap、jinfo等分析程序的运行状况
+            dump出运行和层序的对文件、线程信息文件，线下使用内存分析和线程分析工具分析文件。
+            也可以使用GUI工具，如Jconsole,JVisuaVM或者案例的Arthas来试试查看JVM状态
+        解决问题
+            根据分析的结果判断是否需要优化
+            物理层面：
+                增加适当的内存；增加机器，分散单个节点的压力
+            代码优化层面：
+                控制内存的使用、合理设置线程池数量
+            配置层面：
+                    根据业务背景选择合适的垃圾回收；
+                    设置合理的-Xms、-Xmx等参数
+            中间件层面：
+                考虑使用中间件提高程序效率，比如redis、消息队列
+    调优的评价
+        CPU/内存占用情况
+            通过监控或者登录机器通过top命令查看资源使用率
+                查看CPU、堆内存使用率是否处于合理的区间
+        并发数
+            同一时刻，对服务器有实际交互的请求数
+            评估系统能够支撑的并发数的大小是否满足当前及后续的业务需求
+        吞吐量
+            单位时间内完成的工作量（请求）的量度
+            JVM中，吞吐量指的是：运行用户代码的时间占总运行时间的比例（总运行时间=程序运行的时间+GC时间）
+        响应时间
+            提交请求到返回锁法非的时间。一般相应时间越短，系统吞吐量越大。
+                如果赶上了GC，那么GC时工作暂停的时间也将计入总的耗时。
+            可以设置最大GC等待时间
+                -XX:MaxGCPauseMillis = 50
+            如果设置了，JVM将调整Java堆的大小和其他GC相关的参数，以使GC引起的暂停时间小于设置的毫秒数，尽可能的不超过设定值。
+                注意：如果太小，则导致系统胡斐过多的时间进行垃圾回收
+                    因为要满足最大暂停时间限制，JVM将使用更小的堆，以存储相对少量的对象，来提升回收效率，反而会导致更高频率的GC
+        各指标之间的关系
+            并发数小、响应时间短、吞吐量小
+            并发数大、响应时间长、吞吐量大
+
+调优的命令行工具
+    top
+        它对于所有正在运行的进行和系统负荷提供不断更新的概览信息，包括系统负载、CPU利用分布情况、内存使用、每个进程的资源占用情况等信息
+        统计信息
+            第一行：
+                top - 16:20:38 up 12 days,  5:24,  2 users,  load average: 0.04, 0.03, 0.05
+                top:当前时间
+                up:运行的时间
+                users:登录的用户数
+                load average:系统的负载、即任务队列的平均长度。三个数值分别为1，5，15分前到现在的平均值
+                    在一段时间内，CPU正在处理以及等待CPU处理的进程数之和
+                    这个数值高了也并不能直接代表这台机器的性能有问题，可能是因为正在进行CPU密集型的计算，也有可能是因为I/O问题导致运行队列堵了
+                    所以，当我们看到这个数值飙升的时候，还得具体问题具体分析
+                    一般来说Load Average的数值别超过这台机器的总核数，就基本没啥问题
+            第二行：
+                Tasks: 127 total,   1 running, 126 sleeping,   0 stopped,   0 zombie
+                Tasks：当前有多少进程
+                running：正在运行的进程数
+                sleeping：正在休眠的进程数
+                stopped：停止的进程数
+                zombie:僵尸进程数
+                running越多，服务器压力越大
+            第三行：
+                %Cpu(s):  0.3 us,  0.7 sy,  0.0 ni, 99.0 id,  0.0 wa,  0.0 hi,  0.0si,  0.0 st
+                us:用户空间站CPU的百分比
+                sy:内核空间占CPU的百分比
+                ni:用户进程空间改变过优先级（ni是nice的缩写，可以通过调整nice值调整用户优先级，这里的ni表示调整过nice值的进场消耗掉CPU的时间）
+                id:空闲CPU占用率
+                wa: 等待输入输出的CPU时间百分比
+                    可以通过wa来判断系统的性能瓶颈是不是过多的IO操作造成的
+                hi：硬中断占用百分比
+                si:软中断占用百分比
+                st：steal time
+            第四行：
+                KiB Mem : 1863012 total, 1286408 free,  216532 used, 360072 buff/cache
+                total：物理内存总量
+                free：空闲内存量
+                used：使用的内存量
+                buffer/cache：用作内核缓存的内存量
+            第五行
+                KiB Swap: 5242876 total, 7999484 free,     0 used. 1468240 avail Mem
+                total：交换区内存总量
+                free：空闲交换区总量
+                used：使用的交换区总量
+                buffer/cache：缓冲的交换区总量
+            第四第五行分别是内存信息和swap信息，所有程序的运行都是在内存中进行的，所以内存的性能对与服务器来说非常重要。
+            不过当内存的free变少的时候，其实我们并不需要太紧张。
+            真正需要看的是Swap中的used信息。
+            Swap分区是由硬盘提供的交换区，当物理内存不够用的时候，操作系统才会把暂时不用的数据放到Swap中。
+            所以当这个数值变高的时候，说明内存是真的不够用了。
+
+            进程信息
+                PID    USER    PR  NI  VIRT    RES   SHR   S  %CPU  %MEM     TIME+  COMMAND
+                21829  root    20   0  0       0     0     S   0.7  0.6   129:53.91  java
+                22559  root    20   0  158920  5628  4268  S   0.3  9.2   139:42.81  java
+                22598  root    20   0  162112  2208  1540  S   0.3  0.1   0:04.68    fluentd
+                PID  	进程id
+                USER	进程所有者的用户名
+                PR	   	优先级
+                NI		nice值，负值表示高优先级，正值表示低优先级
+                VIRT	进程使用的虚拟内存总量，单位kb。VIRT=SWAP+RES
+                RES		进程使用的、未被换出的物理内存大小，单位kb。RES=CODE+DATA
+                SHR		共享内存大小，单位kb
+                S		进程状态。D=不可中断的睡眠状态 R=运行 S=睡眠 T=跟踪/停止 Z=僵尸进程
+                %CPU	上次更新到现在的CPU时间占用百分比
+                %MEM	进程使用的物理内存百分比
+                TIME+	进程使用的CPU时间总计，单位1/100秒
+                COMMAND	命令名/命令行
+            常用参数：
+                -d	指定每两次屏幕信息刷新之间的时间间隔，如希望每秒刷新一次，则使用：top -d 1
+                -p	通过指定PID来仅仅监控某个进程的状态
+                -S	指定累计模式
+                -s	使top命令在安全模式中运行。这将去除交互命令所带来的潜在危险
+                -i	使top不显示任何闲置或者僵死的进程
+                -c	显示整个命令行而不只是显示命令名
+
+jps
+    Java Process Status的简称，可哟关于查询正在运行的Java虚拟机进程。
+    对于本地虚拟机来说，进程的虚拟机ID和操作系统的进程ID是一直的、唯一的
+    参数：
+       -q:仅显示虚拟机进程号，不显示主类名称
+       -l：输出应用程序主类的全类名，主要是jar，则输出jar包全路径
+       -m：jvm启动时候传给main方法的参数
+       -v:启动jvm进程时候的jvm参数
+   hostid
+    指定远程主机，监控远程机器上的java进程，远程机器需要安装jstatd。
+        但是一般情况下，为了保证安全，不允许运行jstatd服务器的，只能在本地环境使用jps和jstat命令
+
+jinfo
+    是Configuration Info for Java的简称。用于查看JVM配置参数信息，也可以用于调整虚拟机的参数配置。
+    一般发布到生产中的Java应用，都会指定一些JVM参数。当然也会有一些默认参数。
+    如果想查看当前应用程序启动时的JVM参数，则可以使用jinfo命令
+    参数：
+        -flag:输出指定名称的JVM参数配置值
+        -flag[±]：开启或者关闭对应名称的参数。只有开启时，才被允许修改
+        -flag=:设置对应名称的jvm参数
+        -flags:输出全部的JVM参数
+        -sysprops:输出全部的Java系统属性
+        <no option> 输出全部的JVM参数和系统属性
+    查看操作：
+        jvm: jinfo -flag 参数名称 进程id
+        系统属性： jinfo -sysprops 进程id
+        补充：
+            查看所有JVM参数启动的初始值
+                java -XX:PrintFlagsInitial
+            查看所有JVM参数的最终值
+                java -XX:PrintFlagsFinal
+            查看所有的命令行上设置的参数
+                java -XX:+PrintCommandLineFlags
+    修改操作：
+        jinfo不仅可以查看jvm参数，还可以修改部分参数，并且立即生效
+        查看可以修改的flag
+            java -XX:+PrintFlagsFinal -version | grep manageable
+        boolean类型
+            jinfo -flag [+|-] 参数名称 进程ID
+        非boolean类型
+            jinfo -flag 参数名称=值 进程ID
+
+jstat
+    JVM Statistics Monitoring Tool，用于监视JVM运行时状态的各种信息
+    可以查看本地或者远程JVM的类加载、内存数据、垃圾收集、JIT编译等运行时数据
+    没有GUI工具的情况下，定位线上问题的主要手段。常用于检测垃圾回收和内存泄露等问题
+    基本语法：
+        jstat -<option> [-t] [-h<lines>] <vmid> [<interval> [<count>]]
+    option参数：
+        -class 显示ClassLoader相关信息，包括类的装载、卸载数量、总的空间占用、类装载锁消耗的时间
+            Timestamp       Loaded  Bytes  Unloaded  Bytes     Time
+               412970.0  79061 105271.5    45272 48976.6      35.95
+               412971.1  79061 105271.5    45272 48976.6      35.95
+               412972.1  79061 105271.5    45272 48976.6      35.95
+        -gc 显示gc相关的信息。包括年轻到的Eden区、2个Survivor区、老年代、永久代的容量、已用空间、GC时间合计等信息
+            Timestamp        S0C    S1C    S0U    S1U      EC       EU        OC         OU       MC     MU    CCSC   CCSU   YGC     YGCT    FGC    FGCT    CGC    CGCT     GCT
+                   413092.2  0.0   155648.0  0.0   153600.0 2854912.0 978944.0 3371008.0  2664260.0  209212.0 173145.8 37248.0 21131.5    254    9.384   0      0.000  30      0.847   10.231
+                   413093.2  0.0   155648.0  0.0   153600.0 2854912.0 978944.0 3371008.0  2664260.0  209212.0 173145.8 37248.0 21131.5    254    9.384   0      0.000  30      0.847   10.231
+                   413094.2  0.0   155648.0  0.0   153600.0 2854912.0 978944.0 3371008.0  2664260.0  209212.0 173145.8 37248.0 21131.5    254    9.384   0      0.000  30      0.847   10.231
+        -gccapacity ava堆内存的各个区域使用到的最大、最小空间
+            Timestamp        NGCMN    NGCMX     NGC     S0C   S1C       EC      OGCMN      OGCMX       OGC         OC       MCMN     MCMX      MC     CCSMN    CCSMX     CCSC    YGC    FGC   CGC
+                   413188.7      0.0 16453632.0 3010560.0    0.0 155648.0 2854912.0        0.0 16453632.0  3371008.0  3371008.0      0.0 1220608.0 209212.0      0.0 1048576.0  37248.0    254     0    30
+                   413189.8      0.0 16453632.0 3010560.0    0.0 155648.0 2854912.0        0.0 16453632.0  3371008.0  3371008.0      0.0 1220608.0 209212.0      0.0 1048576.0  37248.0    254     0    30
+                   413190.8      0.0 16453632.0 3010560.0    0.0 155648.0 2854912.0        0.0 16453632.0  3371008.0  3371008.0      0.0 1220608.0 209212.0      0.0 1048576.0  37248.0    254     0    30
+        -gcutil 一使用空间和总空间的百分比
+            Timestamp         S0     S1     E      O      M     CCS    YGC     YGCT    FGC    FGCT    CGC    CGCT     GCT
+                   413249.0   0.00  98.68  39.60  79.03  82.76  56.73    254    9.384     0    0.000    30    0.847   10.231
+                   413250.1   0.00  98.68  39.60  79.03  82.76  56.73    254    9.384     0    0.000    30    0.847   10.231
+                   413251.1   0.00  98.68  39.60  79.03  82.76  56.73    254    9.384     0    0.000    30    0.847   10.231
+        -gccasue 和gcutil一直，但是会额外输出导致最后一次gc或者正在发生gc的原因
+            xxxxxx
+        -gcnew 年轻代（新生代）的gc情况
+            Timestamp        S0C    S1C    S0U    S1U   TT MTT  DSS      EC       EU     YGC     YGCT
+                   413442.7    0.0 155648.0    0.0 153600.0 15  15 178176.0 2854912.0 1212416.0    254    9.384
+                   413447.8    0.0 155648.0    0.0 153600.0 15  15 178176.0 2854912.0 1212416.0    254    9.384
+                   413452.7    0.0 155648.0    0.0 153600.0 15  15 178176.0 2854912.0 1216512.0    254    9.384
+        -gcnewcapacity 输出内容和gcnew基因一直，侧重于输出使用到的最大、最小空间
+            Timestamp         NGCMN      NGCMX       NGC      S0CMX     S0C     S1CMX     S1C       ECMX        EC      YGC   FGC   CGC
+                   413526.4        0.0 16453632.0  3010560.0      0.0      0.0 16453632.0 155648.0 16453632.0  2854912.0   254     0    30
+                   413528.0        0.0 16453632.0  3010560.0      0.0      0.0 16453632.0 155648.0 16453632.0  2854912.0   254     0    30
+                   413529.5        0.0 16453632.0  3010560.0      0.0      0.0 16453632.0 155648.0 16453632.0  2854912.0   254     0    30
+       -gcold 老年代的gc情况
+            Timestamp          MC       MU      CCSC     CCSU       OC          OU       YGC    FGC    FGCT    CGC    CGCT     GCT
+                   413561.7 209212.0 173145.8  37248.0  21131.5   3371008.0   2664260.0    254     0    0.000    30    0.847   10.231
+                   413563.3 209212.0 173145.8  37248.0  21131.5   3371008.0   2664260.0    254     0    0.000    30    0.847   10.231
+                   413564.8 209212.0 173145.8  37248.0  21131.5   3371008.0   2664260.0    254     0    0.000    30    0.847   10.231
+
+       -gcoldcapacity 和gcold基本一致，侧重于输出使用到的最大最小空间
+
+       -gcpermcapacity 永久代使用到的最大最小空间
+
+       -compiler 显示JIT编译器编译过的方法、耗时等信息
+
+       -printcompilation 输出JIT编译过的方法
+
+    interval
+        用于指定输出统计数据的周期，单位为毫秒。也就是查询间隔
+    count
+        指定查询的总次数
+    -t
+        加上timestamp
+    -h
+        可以在周期性数据输出是，输出多少行数据后输出一个表头信息
+    内存泄漏的判断：
+        jstat -gc -t 3124 1000 20
+        长时间运行Java程序，使用上述命令，获得多行性能数据。我们关注OU（老年代已使用内存）的数据最小值
+        每隔一段时间重复上述操作，如果这个值呈上升趋势，说明老年代的内存使用量在不断增加，即：
+            无法回收的对象越来越多，可能存在内存泄漏
+jstack
+    JVM Stack Trace的缩写，用于生成JVM指定进程当前时刻的线程快照（dump）。
+        线程快照是当前JVM内指定进程的每一个正在执行方法的堆栈集合
+    线程快照可以用于分析和定位线程出现长时间停顿的原因，比如线程间死锁，死循环，请求外部资源导致长时间等待。
+        线程停顿时，使用jstack就可以显示各线程调用的堆栈信息
+    使用jstack进行线程dump时，主要关机的几个状态：
+        死锁 DeadLock
+        等待资源 Waiting on condition
+        等待获取监视器 Waiting on monitor entry
+        阻塞 Blocked
+        执行中 Runnable
+        暂停 Suspended
+        对象等待中 Object.wait()，Timed_waiting
+        停止 Parked
+    基本语法
+        jstack [-l] <pid>
+    连接远程主机
+        jstack [-m][-l][service_id@]
+    options参数
+        -F 当正常输出的请求不被响应时，强制输出线程堆栈
+        -l 除堆栈外，输出锁的附加信息
+        -m 调用本地方法的话，可以显示C/C++堆栈
+        -h 帮助信息
+    输出结果
+        输出结果重定向到文件
+        jstack -l 16515> mydump.txt
+jmap
+    JVM Memory Map的缩写，主要生成堆转储文件，也就是我们说的dump文件。
+    jdk自带命令行工具中你最重要的工具
+    jmap还可以获取java进程的信息，包括java堆中各个区域的使用情况、堆中对象统计信息、类加载信息
+    实际使用过程中，通常使用jmap生成dump文件，然后借助GUI去分析dump文件
+    基本语法：jmap [option] <pid>
+    options参数：
+        -dump：生成Java堆转储快照，即dump文件；-dump:live只保存堆中存活的对象
+        -heap：输出堆空间的详细信息，包括GC的使用、堆配置信息，以及内存的使用信息
+        -histo：输出堆中对象的同级信息，包括类、实例数量和合计容量，-hiso:live只统计堆中存活对象
+        -permstat：以ClassLoader为口径输出永久代的内存状态信息。仅在linux/solaris有效
+        -finalizerinfo：显示在F-Queue中等待Finalizer线程执行finalize方法的对象。仅在linux/solaris有效
+        -F：当虚拟机进程堆-dump选项没有反应时，可以使用此参数强制执行生成dump文件。仅在linux/solaris有效
+    使用举例
+        手动导出内存映像文件
+            jmap -dump:format=b,file=<filename.hprof> <pid> 生成堆中对象的快照
+            jmap -dump:live,format=b,file=<filename.hprof> <pid> 生成堆中存活对象的快照
+            一般使用第二种方式，也就是堆中存活的对象快照，这种方式生成的文件更小，有利于数据的传输
+        自动导出内存映像文件
+            系统发生oom时候，一些现场信息都随着程序的终止而消失。而复现oom问题比较困难，此时自动导出dump文件就非常有用了。
+            可以使用参数指定JVM参数开启自动导出：
+            -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=<filename.hprof>
+    显示堆内存相关信息
+        jmap -heap 进程ID　
+            显示该时间点上的堆信息。比jstat,后者可以添加参数，指定动态时间观察
+            图形化的工具，可以用图表的方式动态展现出信息，更加只管
+        jmap -histo 进程ID
+            输出堆的同级信息，包括类、实例数量和合计数量，这也是内存中的对象信息
+        jmap -permstat 进程ID
+            查看系统的ClassLoader信息，仅在linux/solaris有效
+        jmap -finalizerinfo
+            查看堆积在finalizer队列中的对象，仅在linux/solaris有效
+    几点说明
+        通常自动Heap Dump之前，会出发依次full gc,因此heap dump保存的是gc之后的信息
+        生成dump文件比较耗时，尤其是对线上大镜像生成dump文件，则需要花费更多的时间，因此慎用jmap
+        由于jmap将访问堆中所有的对象，为保证此过程不受应用线程干扰，jmap需要借助安全点机制，让所有线程停留在不改变堆中数据的状态。即jmap导出的堆快照文件必然是安全点位置的，可能导致基于该快照的分析结果存在偏差。
+            如果某个线程长时间无法到达安全点，则jmap会一直等下去，即造成“卡死现象”。
+            而jstat命令与上述机制不同，垃圾回收器会主动将所需要的摘要数据保存在固定位置中，直接读取即可。
+jhat
+    JVM Heap Analysis Tool的缩写，用于分析jmap生成的dump文件。内置了http/html服务器，用户可以在浏览器中查看
+    默认端口是7000，通过http://localhost:7000
+    jdk9之后被移除了，官方推荐VisualVM
+    命令：
+        jhat -port 9000 F:\\dump.hprof
+jstatd
+    一个基于rmi的server程序，相当于一个代理服务器，用于建立本地计算机和远程计算机的通信。
+    用于监控jvm的创建和终止，并且提供接口让监控工具（VisualVM）可以远程连接到本机jvm，即虚拟机的jstat守护进程
+    因此jstatd服务器可以将java应用程序的信息传递到远程计算机。
+    处理安全的考虑，生产很少用
+jcmd
+    jdk7新增的命令行工具，可以实现jstat之外的所有命令的功能。是一个集多种功能于一身的工具。
+    可以生成dump文件、查看java进程、dump线程信息。
+    oracle推荐jcmd替换jmap命令
+    应用举例
+        jcmd -l:列出jvm进程，类似jps
+        jcmd 进程号 help:针对指定的进程，列出支持的命令信息
+        jcmd 进程号 具体命令：像jstack一样
+
+二、JConsole和JVisualVM
+命令行的缺陷
+    登录应用所在服务器，不方便
+    无法获取方法级别的数据，比如调用关系、调用次数和调用时间
+    不够直观
+JConsole
+    jdk5引入的，对于JVM的内存、线程、类的监控，是一个基于JMX（Java Management Extensions）的GUI性能监控工具
+    启动方式：
+        jconsole.exe
+    连接方式：
+        本地进程
+            使用JConsole连接一个正在本地系统运行的JVM进程，并且执行Java程序的用户要和JConsole的用户相同。
+            JConsole使用文件系统
+        远程进程
+            格式：<hostname>:<port>或者service:jmx:<protocal>:<sap>
+            例如：service:jmx:rmi:///hostName:portNumjmx/rmi
+            为了能够使JConsole能够连接，需要在目标机器换进改变两种设置：mx.remote.credentials来指定用户名和密码，从而进行授权
+    使用方式：
+        启动jconsole
+    概览：
+        总览：
+            堆内存、线程、类加载和CPU占用率
+        内存：
+            堆内存、老年代、Survivor区的变化
+            手动执行GC
+        线程：
+            检测死锁
+        其他
+
+JVisualVM
+    集成了JDK命令行工具和轻量级分析功能的可视化工具
+    原来是独立于jdk的产品，6之后作为jdk的一部分发布
+    启动方式：
+        jvisualvm.exe
+    连接方式：
+        本地连接：
+            监控Java进程的内存、CPU、类和线程等信息
+        远程连接：
+            确定远程服务器地址
+            添加jmx
+            修改tomcat服务器的bin/catalina.sh
+            在tomcat缪路中配置/conf中添加jmxremote.access和jmxremote.password文件
+            暴露在公网的ip地址
+            设置阿里云安全策略和防火墙策略
+            启动tomcat服务器，查看tomcat启动日志和端口监听
+            jmx中输入端口、永明和密码
+            但是，一般生产环境中不建议使用远程连接，可以在测试环境中排查问题时使用
+    插件安装：
+        可装插件一大亮点，安装插件非常简单。插件列表地址：http://visualvm.github.io/plugins.html
+        安装VisualGC，能以可视化的方式查看堆内存各个区域的使用情况
+    使用：
+        查看JVM参数和系统属性：
+            概述页可以看到JVM参数和系统属性、进程号、进程所属的主类等信息
+        监视器：
+            CPU，堆内存、堆外内存（Metaspace）的使用情况
+            类和线程信息
+            手动GC
+            点击堆tump生成堆转储文件
+        生成dump和线程dump文件：
+            也可以通过选中进程上邮件的方式生成堆dump和线程dump文件，实现jmap和jstack功能
+        读取导出快照文件：
+            实际应用中，不太会被允许直接连接远程服务器。通常时运维人员在线上执行jmap、jstack命令生成dump文件，然后开发人员线下分析
+            对于堆dump文件可以找出占用内存较多的对象、占用内存不断增长的对象。往往这些对象可能造成内存泄漏
+            对于线程dump文件，可以过滤出非正常的额RUNNABLE状态的线程，找出cpu使用率较高的线程，一步步定位到有问题的线程
+                堆转储文件：
+                    导入堆dump文件（*.hprof）
+                    可以进行多个堆转储文件的对比分析
+                    每个一段时间生成一个dump文件，多个dump文件进行分析比较，很容易找出增速快的对象实例
+                线程dump文件
+                    *.tdump
+                    死锁BLOCKED
+        线程：
+            线程页面可以实时看到各线程的状态。红色监视状态的即为BLOCKED状态的线程
+            相比静态的线程dump文件，这种动态的方式更容易定位到问题线程，进而找到相关代码进行排查
+        抽样器：
+            抽样器可以堆线程和内存进行动态抽样，实时看到内存中的对象实例的变化。
+            功能类似于前文所说的对比不同时刻的内存dump文件
+            只不过这里时动态图形界面显示的，更加直观。而前者时手动生成不同时刻的文件，手动导入到分析工具中进行静态对比
+
+常用的参数（链接：https://bigbird.blog.csdn.net/article/details/119305731）
+    标准参数选项
+        后续版本基本不会变化，通常以-开头。以java -方式运行
+        使用java,java -help可以看到所有的标准选项
+    -X参数选项
+        非标准化参数，功能相对稳定，但是后续版本可能会变更。通常以-X开头
+        使用java -X查看所有的X选项
+        JIT相关
+            -Xint:解释器，全部由解释器执行，JIT编译器提供的高性能优势将不存在
+            -Xcomp:强制进行编译执行。会禁用解释执行，以提高编译性能，但会降低效率
+            -Xmixed：混合模式，也时默认模式。刚开始的时候，使用解释器慢慢解释执行，后来让JIT即时编译器根据程序的运行状况，
+                有选择的将某些热点代码提前编译为本地代码并缓存，在执行的时候效率就很高了
+        几个常用的
+            -Xms：初始堆内存，等价于 -XX:InitialHeapSize=
+            -Xmx：最大堆内存，等价于 -XX:MaxHeapSize=
+            -Xss：线程堆栈大小，等价于 -XX:ThreadStackSize=
+    -XX参数选项
+        非标准化参数，也是日常生产配置中使用最多的选项。这类选项属于实验性的，非稳定的。通常以-XX开头
+        主要作用是开发和调试JVM。
+        一般分为两种
+            boolean
+                -XX:+ 表示启用
+                -XX:- 表示禁用
+                例子：
+                    -XX:+UseParallelGC 	设置垃圾回收器为并行收集器
+                    -XX:+UseG1GC		设置垃圾回收器为G1收集器
+                    -XX:+UseAdaptiveSizePolicy	设置自动选择年轻代大小和相应的Survivor区的比例
+                    -XX:-UseAdaptiveSizePolicy	取消上述设置
+            非boolean
+                数值型
+                    格式：-XX:=number
+                    number表示数值，可以带上单位（如m\k\g\M\K\G）
+                    例子：
+                        -XX:NewSize=256m		设置新生代大小为256兆
+                        -XX:NewSize=262144k		同上
+                        -XX:NewSize=268435456	同上
+                        -XX:MaxGCPauseMillis=500	表示最大GC停顿时间为500毫秒
+                        -XX:NewRatio=2		设置新生代和老年代的比例为1:2
+                        -XX:GCTimeRatio=19	设置吞吐量，即设置垃圾回收的时间和应用程序的时间比例为1/(1+19)，默认值为99，即1%时间用于垃圾收集。
+                非数值型
+                    -XX:HeapDumpPath=/var/log/java/java_heapdump.hprof
+                    //设置堆转储文件的存储路径
+        常用的参数举例
+            https://bigbird.blog.csdn.net/article/details/119305731
+        垃圾回收参数：
+            查看默认垃圾回收器
+                -XX:+PrintCommandLineFlags 查看命令行相关参数，包含使用的垃圾回收期
+                jinfo -flag 相关垃圾回收期参数 进程ID
+            Serial收集器
+                -XX:+UseSerialGC
+                    指定老年代和年轻代都使用穿行的垃圾回收期，即新生代使用Serial GC，老年代使用Serial Old GC
+            Parnew收集器
+                -XX:+UseParNewGC:使用ParNew收集器，表示年轻代使用ParNew，不影响老年代
+            ParallelGC收集器
+                -XX:+UseParallelGC：指定年轻代使用ParallelGC并行收集器
+                -XX:+UseParallelOldGC：指定老年代使用Parallel并行收集器
+                两个参数开启一个，另一个也默认开启
+            CMS收集器
+                -XX:+UseConcMarkSweepGC:手动指定使用CMS垃圾收集器
+                该参数会默认激活-XX:+UseParNewGC，即ParNew收集年轻代，CMS收集老年代。Serial Old作为老年代的备份收集器
+            G1收集器
+                -XX:+UseG1GC:指定使用G1垃圾回收期收集堆内存
+                大内存，比如8G以上的使用Java应用建议使用G1
+    Java获取JVM参数1：
+        public class PrintMemory {
+            public static void main(String[] args) {
+                Runtime runtime = Runtime.getRuntime();
+                long initialMemory = runtime.totalMemory() / 1024 / 1024;
+                long maxMemory = runtime.maxMemory() / 1024 / 1024;
+                System.out.println("-Xms:" + initialMemory + "M");
+                System.out.println("-Xmx:" + maxMemory + "M");
+                System.out.println("机器总内存大小：" + (maxMemory * 4.0 / 1024) + "G");
+                System.out.println("机器总内存大小：" + (initialMemory * 64.0 / 1024) + "G");
+            }
+        }
+
+    Java获取JVM参数2：
+        public class MemoryMonitor {
+            public static void main(String[] args) {
+                MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+                MemoryUsage usage = memoryMXBean.getHeapMemoryUsage();
+                System.out.println("INIT HEAP: " + usage.getInit() / 1024 / 1024 + "m");
+                System.out.println("MAX HEAP: " + usage.getMax() / 1024 / 1024 + "m");
+                System.out.println("USE HEAP: " + usage.getUsed() / 1024 / 1024 + "m");
+                System.out.println("\nFull Information:");
+                System.out.println("Heap Memory Usage: " + memoryMXBean.getHeapMemoryUsage());
+                System.out.println("Non-Heap Memory Usage: " + memoryMXBean.getNonHeapMemoryUsage());
+
+                System.out.println("当前堆内存大小totalMemory " + (int) Runtime.getRuntime().totalMemory() / 1024 / 1024 + "m");// 当前堆内存大小
+                System.out.println("空闲堆内存大小freeMemory " + (int) Runtime.getRuntime().freeMemory() / 1024 / 1024 + "m");// 空闲堆内存大小
+                System.out.println("最大可用总堆内存maxMemory " + Runtime.getRuntime().maxMemory() / 1024 / 1024 + "m");// 最大可用总堆内存大小
+            }
+        }
+
+
+
+
