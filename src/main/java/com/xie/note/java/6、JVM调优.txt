@@ -356,6 +356,14 @@ JConsole
             使用JConsole连接一个正在本地系统运行的JVM进程，并且执行Java程序的用户要和JConsole的用户相同。
             JConsole使用文件系统
         远程进程
+
+            远程启动参数：
+                java -Djava.rmi.server.hostname=192.168.196.160
+                -Dcom.sun.management.jmxremote
+                -Dcom.sun.management.jmxremote.port=9077
+                -Dcom.sun.management.jmxremote.authenticate=false
+                -Dcom.sun.management.jmxremote.ssl=false
+                -jar pj-gemp-werp-project.jar &
             格式：<hostname>:<port>或者service:jmx:<protocal>:<sap>
             例如：service:jmx:rmi:///hostName:portNumjmx/rmi
             为了能够使JConsole能够连接，需要在目标机器换进改变两种设置：mx.remote.credentials来指定用户名和密码，从而进行授权
