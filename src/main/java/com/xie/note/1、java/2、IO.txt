@@ -46,7 +46,7 @@
                     public static void main(String[] args) throws IOException {
                         //字节缓冲输出流：BufferedOutputStream(OutputStream out)
 
-                        BufferedOutputStream bos = new BufferedOutputStream(new 				                                       FileOutputStream("myByteStream\\bos.txt"));
+                        BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream("myByteStream\\bos.txt"));
                         //写数据
                         bos.write("hello\r\n".getBytes());
                         bos.write("world\r\n".getBytes());
@@ -55,7 +55,7 @@
 
 
                         //字节缓冲输入流：BufferedInputStream(InputStream in)
-                        BufferedInputStream bis = new BufferedInputStream(new                                                          FileInputStream("myByteStream\\bos.txt"));
+                        BufferedInputStream bis = new BufferedInputStream(new FileInputStream("myByteStream\\bos.txt"));
 
                         //一次读取一个字节数据
                 //        int by;

@@ -6,10 +6,10 @@
         Exception
             Exception 类用于用户程序可能出现的异常情况，它也是用来创建自定义异常类型类的类。
             受检查异常
-                IO相关的，ClassNotFoundException，CloneNotSupportedException,数组越界，除以0
+                IO相关的，ClassNotFoundException，CloneNotSupportedException
                 该异常我们必须手动在代码里添加捕获语句来处理该异常
             运行时异常（RuntimeException）
-                NullPointerException、IndexOutOfBoundsException
+                NullPointerException、IndexOutOfBoundsException、数组越界、除以0
 泛型
     泛型的本质是为了将类型参数化， 也就是说在泛型使用过程中，数据类型被设置为一个参数，在使用时再从外部传入一个数据类型；
     而一旦传入了具体的数据类型后，传入变量（实参）的数据类型如果不匹配，编译器就会直接报错。这种参数化类型可以用在类、接口和方法中，分别被称为泛型类、泛型接口、泛型方法。

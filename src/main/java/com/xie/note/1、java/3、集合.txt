@@ -44,7 +44,7 @@ Collection
                     java.util.Collections;
                     java.util.Collection 是集合接口。
                     java.util.Collections 是集合工具类。
-            Collections.synchronizedList();//将及格转换为线程安全的。
+            Collections.synchronizedList();//将结合转换为线程安全的。
     Set
         不允许包含重复的值
         没有索引（就不能使用普通的for循环进行遍历）
@@ -100,7 +100,7 @@ Collection
                 所以HashSet集合中的元素也需要同时重写hashCode()+equals()方法。
             3、HashMap集合的默认初始化容量是16，默认加载因子是0.75
                 这个默认加载因子是当HashMap集合底层数组的容量达到75%的时候，数组以二叉树开始扩容。
-            数据结构：数据、链表、红黑树
+            数据结构：数组、链表、红黑树
             其他：
                 HashMap 底层维护了 Node 类型的数组 table ，默认为 null；
                 当创建对象时，将加载因子（loadfactor）初始化为0.75；
