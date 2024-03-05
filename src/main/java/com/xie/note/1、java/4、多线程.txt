@@ -45,6 +45,66 @@
         优缺点
             可以获取到线程的执行结果
             效率比较低，在获取t线程执行结果的时候，当前线程受阻塞，效率较低
+    FutureTask
+        Callable call = new Callable<String>() {
+            @Override
+            public String call() throws Exception {
+                try {
+                    for (int i = 0; i < 10; i++) {
+                        Thread.sleep(1000);
+                        System.out.println(i + 1 + "进行中");
+                    }
+                    System.out.println();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                return "我被调用";
+            }
+        };
+        FutureTask<String> future = new FutureTask<String>(call);
+        new Thread(future).start();
+        System.out.println(future.get());
+    扩展：
+        Runnable实现返回值
+        public class TestMain {
+            public static void main(String[] args) {
+                MyRunnable myRunnable = new MyRunnable();
+                Thread t1 = new Thread(myRunnable);
+                t1.start();
+                Object o = myRunnable.get();
+                System.out.println(o);
+            }
+        }
+        class MyRunnable implements Runnable {
+            // 存储执行结果
+            private Object outCome = null;
+            @Override
+            public void run() {
+                int i = new Random().nextInt(5);
+                try {
+                    Thread.sleep(i * 1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                // 存储执行结果
+                outCome = i;
+                // 产出结果后唤醒等待的get方法
+                synchronized (this) {
+                    notifyAll();
+                }
+            }
+            public synchronized Object get() {
+                while(outCome == null) {
+                    try {
+                        // 等待产出结果
+                        wait();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                return outCome;
+            }
+        }
 线程控制（Thread）
     yield：
         暂停当前正在执行的线程对象，把线程执行机会让出
@@ -185,7 +245,7 @@
         newScheduledThreadPool 创建一个固定长度的线程池，而且以延迟或者定时的方式来执行，类似Timer；
             调度型线程池
             这个池子里的线程可以按schedule依次delay执行，或周期执行
-    线程池的应用
+    线程池的应用（ThreadPoolExecutor）
         newCachedThreadPool
             CachedThreadPool首先会按照需要创建足够多的线程来执行任务(Task)。
             随着程序执行的过程，有的线程执行完了任务，可以被重新循环使用时，才不再创建新的线程来执行任务。
@@ -364,35 +424,7 @@ ThreadLocal
     CopyOnWriteArrayList和CopyOnWriteArraySet
         它们是加了写锁的ArrayList和ArraySet，锁住的是整个对象，但读操作可以并发执行
     为什么没有ConcurrentArrayList，原因是无法设计一个通用的而且可以规避ArrayList的并发瓶颈的线程安全的集合类
-Atomic
-    包含了一些原子类，用于在多线程环境下进行线程安全的原子操作。
-        使用原子类可以避免使用锁和同步机制，从而减少了线程竞争和死锁的风险，并提高了多线程程序的性能和可伸缩性。
-    Atomic在多线程场合天然的具备线程安全。
-    基本类型：
-        （1）原子基本类型
-            AtomicInteger：整形原子类
-            AtomicLong：长整型原子类
-            AtomicBoolean ：布尔型原子类
-        （2）原子引用类型
-            AtomicReference：引用类型原子类
-        （3）原子数组类
-            AtomicIntegerArray：整形数组原子类
-            AtomicLongArray：长整形数组原子类
-            AtomicReferenceArray ：引用类型数组原子类
-        底层实现：
-            volatile和CAS算法
-    常见情况
-        （1）原子读取（Atomic Reads）：
-            "atomic"操作可以确保从共享变量中读取的值是最新的。这意味着一个线程在读取共享变量时，不会看到另一个线程修改变量后的旧值。
-        （2）原子写入（Atomic Writes）：
-            "atomic"操作可以确保将值写入共享变量时的原子性。这意味着一个线程在写入共享变量时，不会被其他线程的读取或写入操作中断或干扰。
-        （3）原子递增和递减（Atomic Increment/Decrement）：
-            某些编程语言提供原子递增和递减操作，以确保对共享计数器的操作是线程安全的。这些操作会在执行过程中阻止其他线程的干扰。
-    局限性：
-        尽管"atomic"操作提供了一定的线程安全性，但在处理复杂的并发场景时，仍然需要考虑其他因素，如数据竞争、同步机制的选择和使用正确的内存模型等。
-            此外，"atomic"操作并不能解决所有的线程安全问题，如死锁、竞争条件等。
-        在对于单个变量的复合操作（比如读-写）中可以代替锁的来保证操作的原子性和安全性，并且由于没有使用锁而有不错的性能，
-            但是对于多个变量的复合操作以及一批代码的原子性和安全性却无能为力，此时只能使用锁
+
 
 volatile
     作用：
@@ -495,3 +527,33 @@ volatile
         使用volatile必须具备以下2个条件：
             对变量的写操作不依赖于当前值
             该变量没有包含在具有其他变量的不变式中
+
+Atomic
+    包含了一些原子类，用于在多线程环境下进行线程安全的原子操作。
+        使用原子类可以避免使用锁和同步机制，从而减少了线程竞争和死锁的风险，并提高了多线程程序的性能和可伸缩性。
+    Atomic在多线程场合天然的具备线程安全。
+    基本类型：
+        （1）原子基本类型
+            AtomicInteger：整型原子类
+            AtomicLong：长整型原子类
+            AtomicBoolean ：布尔型原子类
+        （2）原子引用类型
+            AtomicReference：引用类型原子类
+        （3）原子数组类
+            AtomicIntegerArray：整形数组原子类
+            AtomicLongArray：长整形数组原子类
+            AtomicReferenceArray ：引用类型数组原子类
+        底层实现：
+            volatile和CAS算法
+    常见情况
+        （1）原子读取（Atomic Reads）：
+            "atomic"操作可以确保从共享变量中读取的值是最新的。这意味着一个线程在读取共享变量时，不会看到另一个线程修改变量后的旧值。
+        （2）原子写入（Atomic Writes）：
+            "atomic"操作可以确保将值写入共享变量时的原子性。这意味着一个线程在写入共享变量时，不会被其他线程的读取或写入操作中断或干扰。
+        （3）原子递增和递减（Atomic Increment/Decrement）：
+            某些编程语言提供原子递增和递减操作，以确保对共享计数器的操作是线程安全的。这些操作会在执行过程中阻止其他线程的干扰。
+    局限性：
+        尽管"atomic"操作提供了一定的线程安全性，但在处理复杂的并发场景时，仍然需要考虑其他因素，如数据竞争、同步机制的选择和使用正确的内存模型等。
+            此外，"atomic"操作并不能解决所有的线程安全问题，如死锁、竞争条件等。
+        在对于单个变量的复合操作（比如读-写）中可以代替锁的来保证操作的原子性和安全性，并且由于没有使用锁而有不错的性能，
+            但是对于多个变量的复合操作以及一批代码的原子性和安全性却无能为力，此时只能使用锁

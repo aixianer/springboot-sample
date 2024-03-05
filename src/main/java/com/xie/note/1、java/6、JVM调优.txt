@@ -11,7 +11,7 @@
             线程的程序，我们一般都会开启GC日志输出。通过分析GC日志能够掌握一些程序运行时的情况
             例如：-XX:+PrintGCDetails -XX:+PrintGCDateStamps -Xloggc:/usr/log/myapp-gc.log
         线程快照
-            jdk自带的jstack命令抓取正在运行的Java进程的线程快照，来分析进程中格个线程的运行情况。
+            jdk自带的jstack命令抓取正在运行的Java进程的线程快照，来分析进程中各个线程的运行情况。
                 如果有等待状态或者阻塞状态的线程，那么可以分析原因
             例如：jstack 进程id > mythread.log
         堆内存快照
@@ -39,7 +39,7 @@
             如CPU高，GC频繁，甚至OOM；或者程序响应慢，各种超时，甚至线程死锁
         排查问题
             使用命令行工具jstack、jmap、jinfo等分析程序的运行状况
-            dump出运行和层序的对文件、线程信息文件，线下使用内存分析和线程分析工具分析文件。
+            dump出运行和程序的堆文件、线程信息文件，线下使用内存分析和线程分析工具分析文件。
             也可以使用GUI工具，如Jconsole,JVisuaVM或者案例的Arthas来试试查看JVM状态
         解决问题
             根据分析的结果判断是否需要优化
@@ -63,12 +63,12 @@
             单位时间内完成的工作量（请求）的量度
             JVM中，吞吐量指的是：运行用户代码的时间占总运行时间的比例（总运行时间=程序运行的时间+GC时间）
         响应时间
-            提交请求到返回锁法非的时间。一般相应时间越短，系统吞吐量越大。
+            提交请求到返回结果的时间。一般响应时间越短，系统吞吐量越大。
                 如果赶上了GC，那么GC时工作暂停的时间也将计入总的耗时。
             可以设置最大GC等待时间
                 -XX:MaxGCPauseMillis = 50
             如果设置了，JVM将调整Java堆的大小和其他GC相关的参数，以使GC引起的暂停时间小于设置的毫秒数，尽可能的不超过设定值。
-                注意：如果太小，则导致系统胡斐过多的时间进行垃圾回收
+                注意：如果太小，则导致系统花费过多的时间进行垃圾回收
                     因为要满足最大暂停时间限制，JVM将使用更小的堆，以存储相对少量的对象，来提升回收效率，反而会导致更高频率的GC
         各指标之间的关系
             并发数小、响应时间短、吞吐量小
@@ -523,6 +523,136 @@ JVisualVM
             }
         }
 
+---------------------------------------------
+调优的核心指标
+    jvm.gc.time 每分钟的GC耗时；1s内，500ms最佳
+    jvm.gc.meantime 每次YGC耗时；100ms内，50ms最佳
+    jvm.fullgc.count FGC次数；最多几小时1次，一天不到1次最佳
+    jvm.fullgc.time FGC耗时；1s内，500ms最佳
+JVM优化步骤
+    CPU指标
+        查看占用CPU最多的进程
+        查看占用CPU最多的线程
+        查看线程堆栈快照信息
+        分析代码执行热点
+        查看那个代码占用CPU时间催场
+        查看每个方法占用CPU时间比例
+        常见命令
+            top:显示系统各个进程的资源使用情况
+            top -Hp pid 查看某个进程中的线程占用情况
+            jstack pid：查看当前Java进程的线程堆栈信息
+    JVM内存指标
+        查看当前JVM堆内存参数配置是否合理
+        查看队中对象的统计信息
+        查看推存储快照、分析堆内存的占用情况
+        查看对各区域的内存增长是否正正常
+        查看那个区域导致的GC
+        查看GC后能否正常会回收到内存
+        常见的命令
+            ps -ef|grep java：查看当前JVM的启动参数配置
+            jinfo pid:查看Java进行的撇脂信息，包括系统属性和JVM命令行标志
+            jstat -gc pid:输出进行当前的GC情况
+            jmap -heap pid:输出java堆详细信息
+            jmap -histo:live pid:输出队中对象的统计信息
+            jmap -F -dump:format=b,file=dumpFile.phrof pid：生成Java堆存储dump文件
+    JVM GC指标
+        查看每分钟GC时间是否正常
+        查看每分钟YGC次数是否正常
+        查看FGC次数、时间是否正常
+        查看单次GC各阶段详细耗时，找到最耗时的阶段
+        查看对象的动态升级年龄是否正常
+        GC日志常用 JVM 参数：
+            // 打印GC的详细信息
+            -XX:+PrintGCDetails
+            // 打印GC的时间戳
+            -XX:+PrintGCDateStamps
+            // 在GC前后打印堆信息
+            -XX:+PrintHeapAtGC
+            // 打印Survivor区中各个年龄段的对象的分布信息
+            -XX:+PrintTenuringDistribution
+            // JVM启动时输出所有参数值，方便查看参数是否被覆盖
+            -XX:+PrintFlagsFinal
+            // 打印GC时应用程序的停止时间
+            -XX:+PrintGCApplicationStoppedTime
+            // 打印在GC期间处理引用对象的时间（仅在PrintGCDetails时启用）
+确定优化目标
+    定位出系统瓶颈后，在优化前先制定好优化的目标是什么，例如：
+        FGC的次数
+        每分钟GC耗时
+        每次FGC耗时
+制定优化方案
+    针对定位出的系统瓶颈指定相应的优化方案，常见的有：
+        代码bug:死循环、使用无界队列
+        不合理的JVM参数配置：优化JVM参数配置。典型的有：年轻代内存配置国小、堆内存配置国小、原空间配置较小
+调优案例
+    问题现象
+        频繁FGC
+    原因分析
+        1、查看GC日志，发现出现FGC的原因是metaspace空间不够
+            对应GC日志：Full GC(Metadata GC Threshold)
+        2、进一步查看日志发现原空间存在内存碎片话的现象
+            对应GC日志：
+                Metaspace used 35337K, capacity 56242K, committed 56320K, reserved 1099776K
+                used:已经使用的空间大小
+                capacity:当前已经分配且未释放的空间容量大小
+                commited：当前已经分配的空间大小
+                reserved：预留的空间大小
+             used 和 capacity 两者之差较大，说明此时存在内存碎片化的情况
+         3、通过dump堆存储文件发现大量的DelegatingClassLoader
+            JVM上，最初是通过JNI实现方法的反射调用，当JVM中经常访问一个方法时候，它将生成的字节码执行相同的操作，称为膨胀机制。
+            如果使用字节码的方式，则会为该方法生成一个DelegatingClassLoader，如果存在大量方法经常反射调用，则会导致创建大量的DelegatingClassLoader
+            通过-Dsun.reflect.inflationThreshold设置次数，来使用字节码的方式进行调用
+            分析结论：
+                反射调用导致创建大量的DelefatingClassLoader，占用了较大的元空间内存，同时碎片化严重，导致元空间利用率不高，从而较快达到阈值，触发FGC
+            优化策略：
+                适当调大metaspace的空间大小
+                优化不合理的反射调用，例如BeanUtils.copyProperties使用mapstruct替换
 
+---------------------------------------------
+关键命令
+    GC日志的输出
+        -XX:+PrintGCDetails -XX:+PrintGCDateStamps -Xloggc:/usr/log/myapp-gc.log
+    线程快照
+        jstack 23908 > jstack-extra.log
+    推内存快照
+        jmap -dump:format=b,file=jmap-heap.hprof 23908
+调优的评价
+    CPU/内存占用情况：top命令查看
+    并发数：对服务器实际有交互的请求数量
+    吞吐量：运行用户代码的时间占总运行时间的比例（总运行时间=程序运行的时间+GC的时间）
+    响应时间：
+        提交请求到返回所花费的时间。一般响应时间越短，系统吞吐量越大。如果正好赶上了GC，那么GC时工作线程暂停的时间也将计入总耗时
+        可以通过JVM参数设置最大的GC等待时间（毫秒）
+        -XX:MaxGCPauseMillis=50
+            如果设置了每次GC最大的停顿毫秒数，JVM将调整Java堆大小和其他GC相关的参数，以使GC引起的暂停时间小于设置的毫秒数
+            尽可能的保证内存回收耗时不超过设定的值。
+                注意，如果该参数设置太小，将导致系统花费过多的时间进行垃圾回收。因为要满足最大暂停时间的显示，JVM将设置更小的堆，
+                以存储少量的对象，来提升回收效率，反而会导致更高频率的GC
 
-
+命令行工具
+    jps:
+        java process status
+        查询正在运行的虚拟机进程
+    jinfo:
+        Configuration Info for Java
+        查看或者调整虚拟机参数配置
+        查看最大堆内存
+            java -flag MaxHeapSize 11607
+        查看初始堆内存
+            jinfo -flag InitialHeapSize 11607
+    jstat
+        JVM Statistics Monitoring Tool
+        用于监视Java虚拟机运行的各种状态信息
+        可以查看本地或者远程JVM中的类加载、内存数据、垃圾收集和JIT编译等内存数据
+    jstack
+        JVM STACK Trace
+        用于生成JVM中指定进程当前时刻的而线程快照。线程快照是当前虚拟机内指定进程的每一个线程正在执行的方法的堆栈集合
+        线程快照可以用来分析和定位线程出现长时间丁顿的原因，比如线程间索索、死循环、请求外部资源导致的长时间等待。
+        线程停顿时，使用jstatck就可以显示各个线程调用的堆栈信息
+        BLOCKED状态的线程，并提示deadlock。这时哦们就需要找到线程所在的代码排查问题了
+        重定向到文件
+        jstack -l 16845>mydump.txt
+    jmap
+        JVM Memory Map
+        生成堆转储快照文件，即我们通常说的dump文件。可以说是jdk自带命令行工具中最重要的工具。
+        jmap还可以获取Java进程的内存信息，包括java堆各个区域的使用情况，堆中兑现改的统计信息、类加载信息等
