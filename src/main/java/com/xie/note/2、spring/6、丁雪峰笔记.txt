@@ -154,7 +154,7 @@ springboot1
     编程式事务
         TransactionTemplate
         PlatFromTransactionManager
-            传入TransacrtionDefinition
+            传入TransactionDefinition
     声明式事务
         本质上式通过AOP增强了类的功能
         Spring的AOP本质上就是为类做了一个代理
@@ -168,7 +168,7 @@ springboot1
             propagation
 12、Spring的JDBC异常抽象
     Spring会将数据操作的异常转为DataAccessException
-    通过SQLErrorCodeSQLExcetpionTranslator
+    通过SQLErrorCodeSQLExceptionTranslator
     ErrorCode定义
         org.springframework.jdbc.sql-error-codex.xml
         classpath下可以定义sql-error-codex.xml覆盖jdbc包下的
@@ -218,7 +218,7 @@ springboot1
 
 26、在Spring中访问redis
 
-39、编写第一个Spring Mvc
+39、编写第一个Spring MVC
     DispatchServlet:所有请求的一个入口
         Controller
         xxxResolver
@@ -230,8 +230,8 @@ springboot1
         @Controller：定义控制器
             @RestController：结合了controller和responseBody
         @RequestMapping：我这个controller要处理哪一些请求
-            @GetMapping,@PostMapping
-            @DeleteMapping,@PutMapping
+            @GetMapping,@PostMapping,@DeleteMapping,@PutMapping
+            consumes,produces
         @RequestBody：请求的报文体
         @ResponseBody：响应的报文体
         @ResponseStatus：指定请求返回http响应码

@@ -24,7 +24,7 @@
         read-only
         rollbackFor
         noRollBackFor
-        propagation（传播机制）：requred,supports,mandatory,require_new,not_support,never,nested
+        propagation（传播机制）：required,supports,mandatory,require_new,not_support,never,nested
     （2）编程式事务
         <bean name="transactionManager"
         	class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
@@ -68,7 +68,7 @@
         TransactionDefinition.PROPAGATION_REQUIRED：如果当前存在事务，则加入该事务；如果当前没有事务，则创建一个新的事务。这是默认值。
         TransactionDefinition.PROPAGATION_REQUIRES_NEW：创建一个新的事务，如果当前存在事务，则把当前事务挂起。
             启动一个新的，不依赖于环境的 “内部” 事务。
-            这个事务将被完全 commited 或 rolled back 而不依赖于外部事务，它拥有自己的隔离范围，自己的锁等等。
+            这个事务将被完全 committed 或 rolled back 而不依赖于外部事务，它拥有自己的隔离范围，自己的锁等等。
             当内部事务开始执行时，外部事务将被挂起，内务事务结束时，外部事务将继续执行。
         TransactionDefinition.PROPAGATION_SUPPORTS：如果当前存在事务，则加入该事务；如果当前没有事务，则以非事务的方式继续运行。
         TransactionDefinition.PROPAGATION_NOT_SUPPORTED：以非事务方式运行，如果当前存在事务，则把当前事务挂起。
@@ -156,13 +156,13 @@
     （1）响应时间（RT)：
         响应时间是指系统对请求作出响应的时间
     （2）吞吐量：
-        吞吐量是指系统在单位时间内处理请求的数量
+        吞吐量是指系统在单位时间(通常是s)内处理请求的数量
         对于无并发的应用系统而言，吞吐量与响应时间成严格的反比关系，实际上此时吞吐量就是响应时间的倒数
         不同系统的平均响应时间随用户数增加而增长的速度也不大相同，这也是采用吞吐量来度量并发系统的性能的主要原因。
     （3）并发用户数
         并发用户数是指系统可以同时承载的正常使用系统功能的用户的数量
         对于网站，我们会有三个关于用户的统计：注册用户数、在线用户数和同时发请求用户数
-    （4）QPS每秒查询率(Query Per Second)
+    （4）QPS每秒查询率(Query Per Second)应该是每秒请求数吧
         表示服务器端每秒能够响应的查询次数。一个TPS中可能会包括多个QPS。
     （5）TPS
         每秒处理的事务数，从客户端发起请求开始计时，等收到服务器端响应结果后结束计时，在计算这个时间段内总共完成的事务个数。一个事务指的是客户端发起一个请求，并且等到请求返回之后的整个过程。
