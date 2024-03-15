@@ -371,7 +371,7 @@ springboot1
         InternalResourceViewResolver
             最后的内置的解析器，它是用来处理JSP还有JSTL的
         这些ViewResolver他们每一个都可以去做一个解析，返回一个View对象，再用View对象做一个呈现
-    2、如何做试图解析
+    2、如何做视图解析
         initStrategies()
             initViewResolvers()初始化了对应ViewResolver
             它会加载spring上下文中的所有的ViewResolvers
@@ -400,7 +400,7 @@ springboot1
         redirect:相当于做了一个http302的跳转，可以认为是客户端发起的重定向的跳转；可能会丢失上一个请i去的request信息
         forward:服务端发起的，浏览器上不会发现变化
 
-46、Spring MVC中的常用视图（上）di's
+46、Spring MVC中的常用视图（上）
     messageconverter
 
 47、Spring MVC中的常用视图（下）

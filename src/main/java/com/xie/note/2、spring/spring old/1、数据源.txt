@@ -1,0 +1,215 @@
+1、datasource注入原理
+    （1）yml配置文件
+        spring:
+          datasource:
+            type: com.alibaba.druid.pool.DruidDataSource
+            driver-class-name: com.mysql.cj.jdbc.Driver
+            url: jdbc:mysql://localhost:3306/test?serverTimezone=UTC&useUnicode=true&characterEncoding=utf-8
+            username: root
+            password: root
+    （2）spring-boot-autoconfigure的spring.factories文件中
+        找到org.springframework.boot.autoconfigure.EnableAutoConfiguration
+        spring.factories就是SpringBoot提供的spi SpringBoot提供了注解，会对这里配置的所有Bean进行自动装配。
+
+        在spring.factories中可以找到一条配置：org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+        在DataSourceAutoConfiguration中，可以看到默认支持两种类型的数据源：
+            EmbeddedDatabaseConfiguration（内嵌数据库）
+            PooledDataSourceConfiguration（池化数据源）
+        池化数据源的条件是要么配置了spring.datasource.type，要么满足PooledDataSourceAvailableCondition的条件
+
+2、transaction
+    （1）包含的内容
+        isolation(隔离级别)：串行，提交读，可重复读，读未提交
+        timeout：
+        read-only
+        rollbackFor
+        noRollBackFor
+        propagation（传播机制）：required,supports,mandatory,require_new,not_support,never,nested
+    （2）编程式事务
+        <bean name="transactionManager"
+        	class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        		<property name="dataSource" ref="shardingDataSource"></property>
+        	</bean>
+        <tx:annotation-driven transaction-manager="transactionManager" proxy-target-class="true" />
+        <tx:advice id="txAdvice" transaction-manager="txManager">
+        		<tx:attributes>
+        			<tx:method name="save*" propagation="REQUIRED" />
+        			<tx:method name="import*" propagation="REQUIRED" />
+        	</tx:attributes>
+        </tx:advice>
+        <aop:config expose-proxy="true">
+        		<!-- 只对业务逻辑层实施事务 -->
+        		<aop:pointcut id="txPointcut"
+                <aop:advisor advice-ref="txAdvice" pointcut-ref="txPointcut" />
+        </aop:config>
+    （3）声明式事务
+        @Transactional实质是使用了JDBC的事务来进行事务控制的
+        @Transactional基于Spring的动态代理的机制
+        （1）实现原理
+            事务开始时，通过AOP机制，生成一个代理connection对象，并将其放入DataSource实例的某个与DataSourceTransactionManager相关的某处容器中。
+            接下来的整个事务中，客户代码都应该使用该connection连接数据库，执行所有数据库命令
+            事务结束时，回滚在第1步骤中得到的代理connection对象上执行的数据库命令，然后关闭该代理connection对象
+    （4）事务特性
+        所有事务管理策略类都继承PlatformTransactionManager
+        public interface PlatformTransactionManager {
+          TransactionStatus getTransaction(TransactionDefinition definition)
+          throws TransactionException;
+          void commit(TransactionStatus status) throws TransactionException;
+          void rollback(TransactionStatus status) throws TransactionException;
+        }
+    （5）事务隔离级别
+        @Transactional(isolation = Isolation.READ_UNCOMMITTED)：读取未提交数据(会出现脏读, 不可重复读) 基本不使用
+        @Transactional(isolation = Isolation.READ_COMMITTED)：读取已提交数据(会出现不可重复读和幻读)
+        @Transactional(isolation = Isolation.REPEATABLE_READ)：可重复读(会出现幻读)
+        @Transactional(isolation = Isolation.SERIALIZABLE)：串行化
+        @Transactional(isolation = Isolation.DEFAULT)：以连接的数据库的事务隔离级别为主
+        当 spring 中设置了事务隔离级别和连接的数据库事务隔离级别发生冲突的时候，是以 spring 的为准。
+    （6）事务的传播行为
+        TransactionDefinition.PROPAGATION_REQUIRED：如果当前存在事务，则加入该事务；如果当前没有事务，则创建一个新的事务。这是默认值。
+        TransactionDefinition.PROPAGATION_REQUIRES_NEW：创建一个新的事务，如果当前存在事务，则把当前事务挂起。
+            启动一个新的，不依赖于环境的 “内部” 事务。
+            这个事务将被完全 committed 或 rolled back 而不依赖于外部事务，它拥有自己的隔离范围，自己的锁等等。
+            当内部事务开始执行时，外部事务将被挂起，内务事务结束时，外部事务将继续执行。
+        TransactionDefinition.PROPAGATION_SUPPORTS：如果当前存在事务，则加入该事务；如果当前没有事务，则以非事务的方式继续运行。
+        TransactionDefinition.PROPAGATION_NOT_SUPPORTED：以非事务方式运行，如果当前存在事务，则把当前事务挂起。
+        TransactionDefinition.PROPAGATION_NEVER：以非事务方式运行，如果当前存在事务，则抛出异常。
+        TransactionDefinition.PROPAGATION_MANDATORY：如果当前存在事务，则加入该事务；如果当前没有事务，则抛出异常。
+        TransactionDefinition.PROPAGATION_NESTED：如果当前存在事务，则创建一个事务作为当前事务的嵌套事务来运行；如果当前没有事务，则该取值等价于TransactionDefinition.PROPAGATION_REQUIRED。
+            如果外部事务 commit，嵌套事务也会被commit；如果外部事务roll back，嵌套事务也会被roll back。
+            开始一个 “嵌套的” 事务，它是已经存在事务的一个真正的子事务。
+            嵌套事务开始执行时，它将取得一个 savepoint。
+            如果这个嵌套事务失败，我们将回滚到此 savepoint,外部事务正常执行
+            嵌套事务是外部事务的一部分，只有外部事务结束后它才会被提交。
+    （7）事务回滚规则
+        默认配置下，Spring只有在抛出的异常为运行时unchecked异常时才回滚该事务，也就是抛出的异常为RuntimeException的子类(Errors也会导致事务回滚)，而抛出checked异常则不会导致事务回滚。
+        我们指定方式来让事务回滚要想所有异常都回滚,要加上 @Transactional( rollbackFor={Exception.class,其它异常})
+        如果让unchecked例外不回滚： @Transactional(notRollbackFor=RunTimeException.class)
+    （8）注意事项
+        @Transactional 使用位置类上方、方法上方
+        Spring 建议不要在接口或者接口方法上使用该注解，因为这只有在使用基于接口的代理时它才会生效
+        当作用于类上时，该类的所有 public 方法将都具有该类型的事务属性，同时，我们也可以在方法级别使用该标注来覆盖类级别的定义。
+
+        方法的访问权限为 public
+        @Transactional 注解应该只被应用到 public 方法上，这是由 Spring AOP 的本质决定的。在 protected、private 或者默认可见性的方法上使用 @Transactional 注解，这将被忽略，也不会抛出任何异常
+3、连接池
+    （1）durid配置
+        spring:
+          datasource:
+            driver-class-name: com.mysql.jdbc.Driver
+            url: jdbc:mysql://localhost:3306/test
+            username: root
+            password: 123456
+            type: com.alibaba.druid.pool.DruidDataSource
+            druid:
+              initialSize: 5
+              minIdle: 5
+              maxActive: 20
+              maxWait: 60000
+              timeBetweenEvictionRunsMillis: 60000
+              minEvictableIdleTimeMillis: 300000
+              validationQuery: SELECT 1 FROM DUAL
+              testWhileIdle: true
+              testOnBorrow: false
+              testOnReturn: false
+              poolPreparedStatements: true
+              maxPoolPreparedStatementPerConnectionSize: 20
+              useGlobalDataSourceStat: true
+              connectionProperties: druid.stat.mergeSql=true;druid.stat.slowSqlMillis=500
+    （2）常用参数
+        initialSize	0	初始化时建立物理连接的个数。初始化发生在显示调用init方法，或者第一次getConnection时
+        maxActive	8	最大连接池数量
+        maxIdle	8	已经不再使用，配置了也没效果
+        minIdle		最小连接池数量
+        maxWait		获取连接时最大等待时间，单位毫秒。配置了maxWait之后，缺省启用公平锁，并发效率会有所下降，如果需要可以通过配置useUnfairLock属性为true使用非公平锁。
+        poolPreparedStatements	false	是否缓存preparedStatement，也就是PSCache。PSCache对支持游标的数据库性能提升巨大，比如说oracle。在mysql下建议关闭。
+        maxOpenPreparedStatements	-1	要启用PSCache，必须配置大于0，当大于0时，poolPreparedStatements自动触发修改为true。在Druid中，不会存在Oracle下PSCache占用内存过多的问题，可以把这个数值配置大一些，比如说100
+        validationQuery		用来检测连接是否有效的sql，要求是一个查询语句。如果validationQuery为null，testOnBorrow、testOnReturn、testWhileIdle都不会其作用。
+        testOnBorrow	true	申请连接时执行validationQuery检测连接是否有效，做了这个配置会降低性能。
+        testOnReturn	false	归还连接时执行validationQuery检测连接是否有效，做了这个配置会降低性能
+        testWhileIdle	false	建议配置为true，不影响性能，并且保证安全性。申请连接的时候检测，如果空闲时间大于timeBetweenEvictionRunsMillis，执行validationQuery检测连接是否有效。
+        timeBetweenEvictionRunsMillis
+            有两个含义：
+            1) Destroy线程会检测连接的间隔时间
+            2) testWhileIdle的判断依据，详细看testWhileIdle属性的说明
+        numTestsPerEvictionRun		不再使用，一个DruidDataSource只支持一个EvictionRun
+        minEvictableIdleTimeMillis
+        connectionInitSqls		物理连接初始化的时候执行的sql
+        exceptionSorter	根据dbType自动识别	当数据库抛出一些不可恢复的异常时，抛弃连接
+        filters		属性类型是字符串，通过别名的方式配置扩展插件，常用的插件有：
+        监控统计用的filter:stat日志用的filter:log4j防御sql注入的filter:wall
+        proxyFilters		类型是List<com.alibaba.druid.filter.Filter>，如果同时配置了filters和proxyFilters，是组合关系，并非替换关系
+    （3）实现方式
+        实际引用类：DruidDataSourceWrapper
+        通过DruidDataSourceAutoConfigure将DruidDataSourceWrapper转为datasource
+    （4）慢sql查询开启
+          filter:
+              stat:
+                enabled: true
+                log-slow-sql: true
+                slow-sql-millis: 0
+4、连接池的最优配置（参考链接：https://mp.weixin.qq.com/s/VCbJFFcJgPBDXdRTdFNtUg）
+    公式：2*核心线程数+活跃数据缓存失效率
+    没有阻塞的的情况下，单个CPU，顺序执行更快；一旦线程的数量超过CPU的数量，再增加线程数系统就会更慢。
+    数据库性能瓶颈：CPU、磁盘、网络。
+    由于线程总是在 I/O 上阻塞，我们可以让线程/连接数比 CPU 核心多一些，这样能够在同样的时间内完成更多的工作。
+5、系统性能的几个概念
+    （1）响应时间（RT)：
+        响应时间是指系统对请求作出响应的时间
+    （2）吞吐量：
+        吞吐量是指系统在单位时间(通常是s)内处理请求的数量
+        对于无并发的应用系统而言，吞吐量与响应时间成严格的反比关系，实际上此时吞吐量就是响应时间的倒数
+        不同系统的平均响应时间随用户数增加而增长的速度也不大相同，这也是采用吞吐量来度量并发系统的性能的主要原因。
+    （3）并发用户数
+        并发用户数是指系统可以同时承载的正常使用系统功能的用户的数量
+        对于网站，我们会有三个关于用户的统计：注册用户数、在线用户数和同时发请求用户数
+    （4）QPS每秒查询率(Query Per Second)应该是每秒请求数吧
+        表示服务器端每秒能够响应的查询次数。一个TPS中可能会包括多个QPS。
+    （5）TPS
+        每秒处理的事务数，从客户端发起请求开始计时，等收到服务器端响应结果后结束计时，在计算这个时间段内总共完成的事务个数。一个事务指的是客户端发起一个请求，并且等到请求返回之后的整个过程。
+    （6）并发数
+        指的是系统同时能处理的请求数量。
+        如果QPS是1000，就是每秒钟有1000个请求到服务端，一个请求允许耗时3秒钟，那么并发就是3*1000=3000
+    （7）指标的计算
+        如果60分内，有200w用户访问系统，那么
+            QPS=2000000/（60*60）=556
+            并发数（QPS*RT）=556*3=1668
+        随着RT越来越大，并发数越多，意味着服务端占用改的连接数越多，会消耗内存资源和CPU资源等。因此我们需要尽量减少RT
+    （8）2/8法则推算1000W用户的访问量：
+        1000w用户，每天访问的用户占20%，也就是每天有200w用户来访问。
+        假设平均每个用户过来点击5次，总共的pv=1亿。
+        一天24小时，根据2/8法则，每天8000w（80%）用户活跃的时间点集中在（24*0.2）5小时内。
+        此时QPS=(1000*20%*5*80%)/(24*0.2)=4500
+        然后这5个小时亲求并非非常平均，可能会存在大量的用户集中访问，因此一般情况下访问峰值时平均访问请求的3~4倍左右
+        因此QPS=4500*4=18000
+    （9）服务器压力估计
+        TCP连接对于系统资源最大的开销就是内存。
+            因为tcp连接归根结底需要双方接收和发送数据，那么就需要一个读缓冲区和写缓冲区。一个tcp连接最小占用内存为4096+4096 = 8k
+            那么对于一个8G内存的机器，在不考虑其他限制下，最多支持的并发量为：8*1024*1024/8=100w
+        此数字为纯理论上限数值，在实际中，由于linux kernel对一些资源的限制，加上程序的业务处理，所以，8G内存是很难达到100万连接的.
+        当然，我们也可以通过增加内存的方式增加并发量。
+    （9）如何降低RT的值
+        请求执行过程中会做的事情：查询数据库、访问磁盘数据、进行内存运算、调用远程服务。
+        每一步操作都会消耗一定量的时间，当前客户端的请求只有等到这些操作都完成之后才能返回，因此降低RT可以通过优化业务处理逻辑。
+        （1）数据库优化
+            （1）18000个请求进入服务武器，必然会查询数据库，每个请求按3个查询算,5.4w个请求；假设一台db server支撑1w个请求。那么需要6才能满足需要
+            （2）如果数据库服务器的并发连接请求量比较大，建议调高此值，以增加并行连接数量.
+                当然这建立在机器能支撑的情况下，因为如果连接数越多，介于MySQL会为每个连接提供连接缓冲区，就会开销越多的内存，所以要适当调整该值，不能盲目提高设值。
+                （问题：此处并发连接和数据库连接池是否是一个东西，如果是，我觉得不妥）
+            （3）其他：分库分表、缓存
+        （2） 磁盘数据访问优化
+            对磁盘的访问主要是读和写操作，优化方案如下：
+            （1）磁盘的页缓存，借助缓存IO，充分利用系统缓存，降低实际IO的次数。
+            （2）顺序读写，可以用追加写代替随机写，减少寻址开销，加快IO写的速度。
+            （3）SSD代替HDD，固态硬盘的IO效率远远高于机械硬盘。
+            （4）在需要频繁读写同一块磁盘空间时，可以用mmap（内存映射）代替读写，减少内存的拷贝次数。
+            （5）在需要同步写的场景下，尽量将写请求合并，而不是让每个请求都同步写入磁盘，可以用fsync。
+        （3）合理利用内存
+           充分利用内存缓存，把一些经常访问的数据和对象保存在内存中，这样可以避免重复加载或者避免数据库访问带来的性能损耗。比如利用redis缓存热点数据。
+        （4）调用远程服务
+           远程服务调用的影响IO性能因素：
+           远程调用等待返回结果的阻塞、异步通信、网络通信的耗时、内网通信、增加网络带宽、远程服务通信的稳定性。
+        （5）异步化架构
+            异步化处理适用于客户端对处理结果不敏感不要求实时的情况，比如群发邮件、群发消息等
+
+
+

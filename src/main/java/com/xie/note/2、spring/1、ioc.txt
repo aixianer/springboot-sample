@@ -1,0 +1,97 @@
+1、定义
+   由容器动态的将某个依赖关系注入到组件之中。
+   依赖注入的目的并非为软件系统带来更多功能，而是为了提升组件重用的频率，并为系统搭建一个灵活、可扩展的平台
+
+2、作用
+    降低程序间的耦合（依赖关系）
+    依赖关系的管理：
+        以后都交给spring来维护
+        在当前类需要用到其他类的对象，由spring为我们提供，我们只需要在配置文件中说明依赖关系的维护,就称之为依赖注入。
+3、依赖注入的类型
+    基本类型和String
+    复杂类型和集合类型
+    其他的bean类型（在配置文件中或者注解配置过的bean）
+4、依赖注入的三种方式
+    （1）属性注入
+        @Autowired
+        private UserService userService;
+            优点：
+                属性注入最大的优点就是实现简单、使用简单
+            缺点：
+                功能性问题：无法注入一个不可变的对象（final 修饰的对象）
+                通用性问题：只能适应于 IoC 容器
+                设计原则问题：更容易违背单一设计原则
+
+    （2）构造方法注入
+        private UserService userService;
+        @Autowired
+        public UserController(UserService userService) {
+            this.userService = userService;
+        }
+        优缺点：
+            可注入不可变对象
+            注入对象不会被修改
+            注入对象会被完全初始化
+            通用性更好
+    （3）Setter注入
+        private CoffeeService coffeeService;
+        @Autowired
+        public void setCoffeeService(CoffeeService coffeeService) {
+            this.coffeeService = coffeeService;
+        }
+        优缺点：
+            Setter 注入比属性注入要麻烦很多
+            不能注入不可变对象（final 修饰的对象）
+            被注入的对象可能随时被修改。
+    （4）扩展之：@Autowired 和 @Resource的不同点
+        来源：
+            @Autowired是Spring， @Resource是Java
+        查找顺序：
+            @Autowired，type->name（如果多个bean）
+            @Resource，name->type（如果多个bean）
+        设置参数的个数不同
+            @Autowired 只支持设置一个 required 的参数，而 @Resource 支持 7 个参数
+        支持的注入方式不同
+            @Autowired：属性、setter、构造函数
+            @Resource：属性、setter
+5、bean的scope
+    singleton
+        在spring IoC容器仅存在一个Bean实例，Bean以单例方式存在，bean作用域范围的默认值。
+    prototype
+        每次从容器中调用Bean时，都返回一个新的实例，即每次调用getBean()时，相当于执行newXxxBean()。
+    request
+        每次HTTP请求都会创建一个新的Bean，该作用域仅适用于web的Spring WebApplicationContext环境。
+    session
+        同一个HTTP Session共享一个Bean，不同Session使用不同的Bean。该作用域仅适用于web的Spring WebApplicationContext环境。
+    application
+        限定一个Bean的作用域为ServletContext的生命周期。该作用域仅适用于web的Spring WebApplicationContext环境。
+6、bean的声明周期
+    实例化 -> 属性赋值 -> 初始化 -> 销毁
+7、自动装配
+    自动装配式spring满足bean依赖的一种方式
+    spring会在上下文中自动寻找，并自动给bean装配属性
+    装配方式
+        在xml中显示的配置
+        在java中显示配置
+        隐式的自动装配bean
+扩展1：
+    可以通过 @Autowired-》@Qualifier(value = "cat22")限定bean id
+    可以通过 @Resource-》name="cat22"限定bean id
+扩展2
+    @Autowired的原理
+        启动spring IOC时，容器自动装载了一个AutowiredAnnotationBeanPostProcessor后置处理器，当容器扫描到@Autowied
+    @Resource的原理
+        CommonAnnotationBeanPostProcessor后置处理器处理的
+    @Bean的原理
+        @Bean是一个方法级别上的注解，主要用在@Configuration注解的类里，也可以用在@Component注解（@Controller，@Service，@Repository）的类里
+        @Bean注解用于告诉方法，产生一个Bean对象，然后这个Bean对象交给Spring管理。产生这个Bean对象的方法Spring只会调用一次，随后这个Spring将会将这个Bean对象放在自己的IOC容器中
+    @Bean和@Autowired的区别
+        @Autowired
+            可修饰变量和方法,用于完成自动装配(将需要的外部资源注入)，自动装配的前提你要先有才能装配（该资源需要存在于IOC容器中），直接引用资源就行
+            用途：这是这个类的一个实例，请保留它，并在我请求时将它还给我。
+        @Bean
+            修饰的方法表示初始化一个对象并交由Spring IOC去管理,@Bean 只能和@Component @Repository @Controller @Service @Configration 配合使用
+            用途：请给我一个这个类的实例，例如，一个我之前用@Bean注释创建的实例
+
+
+

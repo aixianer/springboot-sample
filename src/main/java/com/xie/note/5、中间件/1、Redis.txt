@@ -1,134 +1,234 @@
-一、Redis为什么那么快？
+1、Redis为什么那么快？
     （1）内存存储：Redis将数据存储在内存中，使得读写速度非常快。同时，Redis也提供持久化机制，可以将内存数据异步地写入磁盘中，保证数据的安全性和可靠性。
     （2）非阻塞I/O多路复用机制：Redis使用非阻塞I/O模型，避免了线程上下文切换和系统调用带来的开销，从而大幅提高了并发吞吐量。
     （3）单线程架构：Redis采用单线程架构，避免了多线程间的同步和锁竞争等问题，简化了代码实现和维护。
     （4）数据结构优化：Redis内置了多种数据结构（如哈希表、有序集合等），并对其进行了优化，使得操作复杂度低，并能在很短的时间内完成大量的数据处理。
     （5）预分配内存：Redis在初始化时会预先分配一定量的内存空间，避免了频繁的内存分配和释放过程，提高了性能。
-二、Redis为什么使用单线程
+2、Redis为什么使用单线程
     官方回复：“Redis的性能瓶颈通常不在CPU上，而是其他因素（如磁盘I/O和网络请求等）限制了系统的性能。”
 
-三、主从模式
+
+3、主从模式
     redis提供了复制(replication)功能，当一台redis数据库中的数据发生了变化，这个变化会被自动的同步到其他的redis机器上去。
     redis多机器部署时，这些机器节点会被分成两类，一类是主节点（master节点），一类是从节点（slave节点）。
     一般主节点可以进行读、写操作，而从节点只能进行读操作。
     同时由于主节点可以写，数据会发生变化，当主节点的数据发生变化时，会将变化的数据同步给从节点，这样从节点的数据就可以和主节点的数据保持一致了。
 
-哈希槽？
+4、五大数据类型
+    （1）String
+        添加：set，查询：get，追加：append(返回总长度)，EXISTS:是否存在，STRLEN:长度
+        自增1：incr,自减1：decr,加n:INCRBY key n，减n:DECRBY key n
+        设置过期时间：setex key 10 abc，tll:查看剩余过期时间（返回-2代表已过期）
+        截取：getrange key 0,4，替换：setrange key 0 4
+        批量插入：mset key1 v1 key2 v2 key3 v3
+        批量获取：mget key1 key2 key3
+        msetnx k1 v1 k2 v2:批量设置，原子性操作（成功返回1，失败返回0）
+        getset:添加获取对象
+    （2）List
+        lpush，lrush,lpop,rpop,lrange
+        lindex:查询指定下标，llen：获取集合长度
+        lrem:根据value移除指定的值
+        ltrim:截取元素
+        rpoplpush：移除指定集合中最后一个元素到新的集合中
+        lset:按照下标更新
+        linsert:插入元素
+    （3）Set
+        sadd（添加）、smembers（查看所有元素）、sismember（判断是否存在）、scard（查看长度）、srem（移除指定元素）操作
+        srandmember（抽随机）操作
+        spop（随机删除元素）、smove（移动指定元素到新的集合中）操作
+        sdiff（差集）、sinter（交集）、sunion（并集）操作
+    （4）Hash
+        hset（添加hash）、hget（查询）、hgetall（查询所有）、hdel（删除hash中指定的值）、hlen（获取hash的长度）、hexists（判断key是否存在）操作
+        hkeys（获取所有key）、hvals（获取所有value）、hincrby（给值加增量）、hsetnx（存在不添加）操作
+    （5）ZSet
+        zadd（添加）、zrange（查询）、zrangebyscore（排序小-大）、zrevrange（排序大-小）、zrangebyscore withscores（查询所有值包含key）操作
+        zrem（移除元素）、zcard（查看元素个数）、zcount（查询指定区间内的元素个数）操作
+5、事务和乐观锁
+    redis单条命令保证原子性，但是事务不能保证原子性
+    （1）事务
+        执行事务：multi->set k1 v1->set k2 v2->exec
+            语法错误编译时异常，都不会执行；但是非语法错误命令可以正常执行
+        放弃事务：multi->set k1 v1->set k2 v2->discard
+    （2）乐观锁
+        用watch实现
+6、持久化
+    RDB(Redis Database)
+        是redis的默认模式
+        配置方式：
+            save 900 1
+            save 200 10
+            save 60 10000（60s内，更新10000次）
+        触发机制：
+            达到配置文件配置
+            删除dump.rdb文件
+            flushall
+            退出redis
+        恢复办法
+            （1）只需将备份的rdb文件放在我们的redis启动目录
+            （2）查找文件位置的命令： config get dir
+        优缺点：
+            优点：
+                适合大规模的数据恢复！
+                对数据的完整性要求不高！
+            缺点：
+                需要一定的时间间隔进程操作！如果redis意外宕机了，这个最后一次修改数据就没有的了！
+                fork进程的时候，会占用一定的内容空间！
+     AOF（Append Only File）
+        配置方式
+            appendonly true # 默认是不开启aof模式的，默认是使用rdb方式持久化的，在大部分所有的情况下， rdb完全够用！
+            # appendfsync always # 每次修改都会 sync。消耗性能
+            appendfsync everysec # 每秒执行一次 sync，可能会丢失这1s的数据！ # appendfsync no # 不执行 sync，这个时候操作系统自己同步数据，速度最快！
+            appendfilename "appendonly.aof" # 持久化的文件的名字
 
-三、集群实操
-1、主从
-（1）master（1）
-    配置文件
-    1)打开配置文件把下面对应的注释掉
-    bind 127.0.0.1
-    2)保护模式
-    protected-mode no
-    3)Redis默认不是以守护进程的方式运行，可以通过该配置项修改，使用yes启用守护进程，设置为no
-    daemonize no
-    4）设置密码
-    requirepass 12345678
-    5)./redis-server ../redis.conf & 启动
-（2）从服务器（2）
-    slaveof 10.0.10.7 6379
-    # 从redis2.6开始，从节点默认是只读的
-    slave-read-only yes
-    # 假设主节点有登录密码
-    masterauth 12345678
-    #设置密码
-    requirepass 12345678
-2、哨兵
-    redis.conf
-        公共：
-            # 需要不同服务器的节点连通，就不能设置为 127.0.0.1
-            bind 0.0.0.0
-            # 需要不同服务器的节点连通，这个就要设置为 no
-            protected-mode no
-            # 设置后台运行redis
-            daemonize yes
-            # 端口
-            port 6379
-            # 密码
-            requirepass 12345678
-            # LOG文件
-            logfile /var/run/redis_6379.log
-            # 主节点认证，主从节点均需要配置
-            masterauth 12345678
-        从节点
-            replicaof 10.0.10.7 6379
-    sentinel.conf
-        # 保护模式默认关闭
-        protected-mode no
-        # 后台运行
-        daemonize yes
-        # log
-        logfile /var/run/redis-sentinel.log
-        # 监控Redis主服务
-        sentinel monitor mymaster 10.0.10.7 6379 2
-        # 配置认证密码
-        sentinel auth-pass mymaster 12345678
-        # S_DOWN时间
-        sentinel down-after-milliseconds redis-master 30000
-        # 设置在故障转移后可以重新配置以同时使用新主服务器的副本数
-        sentinel parallel-syncs redis-master 1
-        # 故障转移超时时间
-        sentinel failover-timeout redis-master 180000
-    切换操作
-        停掉master，会精选出新的master
-        修改旧master的redis.conf指向新的master
-        启动旧master
-3、cluster
-    redis.conf
-        # 需要不同服务器的节点连通，就不能设置为 127.0.0.1
-        bind 10.0.10.7（固定IP）
-        # 需要不同服务器的节点连通，这个就要设置为 no
-        protected-mode no
-        # 设置后台运行redis
-        daemonize yes
-        # 端口
-        port 6379
-        # 密码
-        requirepass 12345678
-        # 主节点认证密码
-        masterauth 123456789
-        # redis日志
-        logfile "redislog6379.log"
-        #append
-        appendfilename "appendonly.aof"
-         注意：
-            启动之前需要清空所有key;
-            清空pid:/var/run/redis_*.pid
-            清空node配置:nodes-*.conf
-            清空dump.rdb文件
-    防火墙
-        默认集群端口是10000+redis端口
-        需要将16379和16380在防火墙放开
-
-    执行：redis-cli -a 123456789 --cluster create --cluster-replicas 1 10.0.10.7:6379 10.0.10.7:6380 10.0.10.9:6379 10.0.10.9:6380 10.0.10.13:6379 10.0.10.13:6380
-    会出现提示：
-        >>> Performing Cluster Check (using node 10.0.10.7:6379)
-        M: 316e515569a6986703d4b0ae9e2593ba08301553 10.0.10.7:6379
-           slots:[0-5460] (5461 slots) master
-           1 additional replica(s)
-        S: 86fa282c3d82ab28e9b1c8337d7fc34a05f82c72 10.0.10.13:6380
-           slots: (0 slots) slave
-           replicates 4cd4bdb52c0ec9787429e695dca477b94f3a4e95
-        M: 30d275400d3b96feb3141b5a3535c6eb9ab5f968 10.0.10.13:6379
-           slots:[10923-16383] (5461 slots) master
-           1 additional replica(s)
-        S: be8a8f97444e4f65bcdc53ca1f88091f8e0f2d80 10.0.10.9:6380
-           slots: (0 slots) slave
-           replicates 316e515569a6986703d4b0ae9e2593ba08301553
-        M: 4cd4bdb52c0ec9787429e695dca477b94f3a4e95 10.0.10.9:6379
-           slots:[5461-10922] (5462 slots) master
-           1 additional replica(s)
-        S: 9deea62693fe104172cf5ac9f36b8be02c7e778f 10.0.10.7:6380
-           slots: (0 slots) slave
-           replicates 30d275400d3b96feb3141b5a3535c6eb9ab5f968
-        [OK] All nodes agree about slots configuration.
-        >>> Check for open slots...
-        >>> Check slots coverage...
-        [OK] All 16384 slots covered.
-4、问题：
-    （1）springboot的redisTemplate和lettuce如何结合，结合的原理以及集群如何配置
-    （2）redis的基础知识，如如何存储对象
-    （3）spring中相关注解的应用，@EnableCaching、@CacheConfig(cacheNames="CoffeeCache"),e@Cacheable
+            auto-aof-rewrite-percentage 100  #写入百分比
+            auto-aof-rewrite-min-size 5gb  #写入的文件最大值是多少，一般在实际工作中我们会将其设置为5gb左右！
+        文件修复
+            redis-check-aof --fix appendonly.aof
+        优缺点：
+            优点：
+                1、每一次修改都同步，文件的完整性会更加好！
+                2、每秒同步一次，最多会丢失一秒的数据！
+                3、从不同步，效率最高的！
+            缺点：
+                1、相对于数据文件来说，aof远远大于 rdb，修复的速度也比 rdb慢！
+                2、Aof 运行效率也要比 rdb 慢，所以我们redis默认的配置就是rdb持久化！
+    总结：
+        （1）RDB能够在指定的时间间隔内对你的数据进行快照存储
+        （2）AOF可以记录服务器写的每次操作，当服务器重启时候，会执行这些命令来恢复原始的数据，AOF命令以Redis协议追加保存每次写的操作到文件末尾
+            还能够对文件进行重写，以至于文件不会太大
+        （3）只做缓存，如果你只希望你的数据在服务器运行的时候存在，可以不持久化
+        （4）同时开启两种持久话
+            当redis重启的时候，会优先载入AOF文件来恢复原始数据，因为AOF更全
+            RDB数据不实时，同时使用两者，服务器重启也会只找AOF，RDB更适合用于备份数据库，可以快速重启
+    性能建议
+        因为RDB只是作为后备，建议Slave开启持久化，且15min一次足够了
+        如果开启AOF，好处是最恶劣的情况下也会丢失不超过两秒，启动也很简单，代价是持续的IO，其次是rewirte的最后将新数据写到新文件造成的阻塞不可避免。
+            只要硬盘许可重写的基础大小可以从基础的64m提高到5g
+        如果不开启AOF，靠主从复制实现高可用也可以，能省掉一大笔IO，也减少了rewrite带来的系统波动；代价是主从同时挂掉，丢失数据，启动脚本要比较rdb文件，载入比骄新的那个
+7、发布和订阅
+    publish:发布；发布指定频道（publish+频道+内容）
+    subscribe:订阅
+    psubcribe:订阅指定频道
+    punsubscribe：退订
+8、主从、哨兵、cluster
+    1、主从
+        1、概念
+            主从复制，是指将一台Redis服务器的数据，复制到其他的Redis服务器。前者称为主节点(master/leader)，后者称为从节点(slave/follower)；
+            数据的复制是单向的，只能由主节点到从节点。Master以写为主，Slave 以读为主。
+        2、主要作用
+            数据冗余:热备份，除了持久化之外的数据冗余方式
+            故障恢复：主节点出现问题，从节点提供服务
+            负载均衡：主从复制的基础上，配合读写分离，可由主提供写，从提供读
+            高可用的基石：哨兵和集群的基础，因此主从复制是高可用的基础
+        3、配置
+            （1）master（1）
+                配置文件
+                1)打开配置文件把下面对应的注释掉
+                bind 127.0.0.1
+                2)保护模式
+                protected-mode no
+                3)Redis默认不是以守护进程的方式运行，可以通过该配置项修改，使用yes启用守护进程，设置为no
+                daemonize no
+                4）设置密码
+                requirepass 12345678
+                5)./redis-server ../redis.conf & 启动
+            （2）从服务器（2）
+                slaveof 10.0.10.7 6379
+                # 从redis2.6开始，从节点默认是只读的
+                slave-read-only yes
+                # 假设主节点有登录密码
+                masterauth 12345678
+                #设置密码
+                requirepass 12345678
+        4、maser挂掉之后切换步骤
+            （1）选取一个新主库执行：slaveof no one
+            （2）其他库执行：slaveof 新主库的IP 端口
+    2、哨兵
+        概念
+            哨兵模式可以自动切换主从
+            哨兵通过发送命令，等待Redis服务器响应，从而监控运行的多个Redis实例。
+        作用
+            通过发送命令，让Redis服务器返回监控其运行状态，包括主服务器和从服务器;
+            当哨兵监测到master宕机，会自动将slave切换到master，然后通过发布订阅模式通过其他的从服务器，修改配置文件，让它们切换主机;
+            然而一个哨兵进程对Redis服务器进行监控，也可能会出现问题，为此，我们可以使用多个哨兵进行监控。各个哨兵之间还会进行监控，这样就形成了多哨兵模式。
+        配置
+            redis.conf
+                公共：
+                    # 需要不同服务器的节点连通，就不能设置为 127.0.0.1
+                    bind 0.0.0.0
+                    # 需要不同服务器的节点连通，这个就要设置为 no
+                    protected-mode no
+                    # 设置后台运行redis
+                    daemonize yes
+                    # 端口
+                    port 6379
+                    # 密码
+                    requirepass 12345678
+                    # LOG文件
+                    logfile /var/run/redis_6379.log
+                    # 主节点认证，主从节点均需要配置
+                    masterauth 12345678
+                从节点
+                    replicaof 10.0.10.7 6379
+            sentinel.conf
+                # 保护模式默认关闭
+                protected-mode no
+                # 后台运行
+                daemonize yes
+                # log
+                logfile /var/run/redis-sentinel.log
+                # 监控Redis主服务
+                sentinel monitor mymaster 10.0.10.7 6379 2
+                # 配置认证密码
+                sentinel auth-pass mymaster 12345678
+                # S_DOWN时间
+                sentinel down-after-milliseconds redis-master 30000
+                # 设置在故障转移后可以重新配置以同时使用新主服务器的副本数
+                sentinel parallel-syncs redis-master 1
+                # 故障转移超时时间
+                sentinel failover-timeout redis-master 180000
+            切换操作
+                停掉master，会精选出新的master
+                修改旧master的redis.conf指向新的master
+                启动旧master
+    3、集群（cluster）
+        概念：
+            Redis 的哨兵模式基本已经可以实现高可用，读写分离 ，但是在这种模式下每台 Redis 服务器都存储相同的数据，很浪费内存，
+                所以在redis3.0上加入了 Cluster 集群模式，实现了 Redis 的分布式存储，对数据进行分片，也就是说每台 Redis 节点上存储不同的内容
+        配置：
+            redis.conf
+                    # 开启redis的集群模式
+                    cluster-enabled yes
+                    # 需要不同服务器的节点连通，就不能设置为 127.0.0.1
+                    bind 10.0.10.7（固定IP）
+                    # 需要不同服务器的节点连通，这个就要设置为 no
+                    protected-mode no
+                    # 设置后台运行redis
+                    daemonize yes
+                    # 端口
+                    port 6379
+                    # 密码
+                    requirepass 12345678
+                    # 主节点认证密码
+                    masterauth 123456789
+                    # redis日志
+                    logfile "redislog6379.log"
+                    #append
+                    appendfilename "appendonly.aof"
+                     注意：
+                        启动之前需要清空所有key;
+                        清空pid:/var/run/redis_*.pid
+                        清空node配置:nodes-*.conf
+                        清空dump.rdb文件
+                     防火墙
+                            默认集群端口是10000+redis端口
+                            需要将16379和16380在防火墙放开
+9、Spring redis哨兵模式读写分离（Lettuce）
+    扩展阅读：
+        https://blog.csdn.net/weixin_44606481/article/details/134017117?ops_request_misc=&request_id=&biz_id=102&utm_term=spring%20lettuce%E8%AF%BB%E5%86%99%E5%88%86%E7%A6%BB&utm_medium=distribute.pc_search_result.none-task-blog-2~all~sobaiduweb~default-3-134017117.142^v99^pc_search_result_base2&spm=1018.2226.3001.4187
+10、线上redis推荐配置
+    max-active：大于cpu * 2，通常为(cpu * 2) + 2
+    max-idle：cpu * 2
+    min-idle：0
+    max-wait：5s(秒)
+    time-between-eviction-runs：1s(秒)

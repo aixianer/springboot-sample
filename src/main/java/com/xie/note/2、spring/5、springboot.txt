@@ -1,0 +1,99 @@
+1、Spring Boot的组成部分
+    （1）特性
+        方便地创建可独立运行的Spring程序
+        内嵌tomcat jetty或undertow
+        简化项目的构建配置
+        为spring及第三方库提供挂自动配置
+        提供生产级特性：如监控
+        无需生成代码或者xml配置
+    （2）四大核心
+        自动配置
+        起步依赖：starter dependency
+        命令行页面
+        Actuator:监控
+
+2、Spring Boot自动配置原理
+    自动配置
+        基于添加JAR依赖自动对Spring Boot应用程序进行配置
+        spring-boot-autoconfiguration
+    开启自动配置
+        @EnableAutoConfiguration
+            exclude = Class<?>[]
+                排除自动配置类
+        @SpringBootApplication
+    自动配置的实现原理
+        AutoConfigurationImportSelector
+        META-INF/spring.factories
+            ***.autoconfigure.EnableAutoConfiguration
+        条件注解
+            @Conditional
+            @ConditionalOnClass
+                classpath下面有什么类的时候生效
+            @ConditionalOnBean
+                spring容器里存在某个特定bean生效
+            @ConditionalOnMissingBean
+                没有某个bean的时候
+            @ConditionalOnProperty
+                配置了某些特定属性的时候怎么做
+        条件注解示例（datasource）
+            DataSourceAutoConfiguration
+            @ConditionalOnClass({DataSource.class,EmbeddedDatabaseType.class})
+        了解自动配置的情况
+            观察自动配置的判断结果
+                program arguments : --debug
+            ConditionEvaluationReportLoggingListener
+                Positive matches
+                Negative matches
+                Exclusions
+                Unconditional classes
+
+3、自定义自动配置类
+    （1）主要工作内容
+        编写Java Config
+            @Configuration
+        添加条件
+            @Conditional
+        定位自动配置
+            META-INF/spring.factories
+    （2）条件注解大家庭
+        条件注解
+            @Conditional
+        类条件
+            @ConditionalOnClass
+            @ConditionalOnMissingClass
+        属性条件
+            @ConditionalOnProperty
+        Bean条件
+            @ConditionalOnBean
+            @ConditionalOnMissingBean
+            @ConditionalOnSingleCandidate
+        资源条件
+            @ConditionalOnResource
+        Web应用条件
+            @ConditionalOnWebApplication
+            @ConditionalOnNotWebApplication
+        其他条件
+            @ConditionalOnExpression
+            @ConditionalOnJava
+            @ConditionalOnJndi
+        自动配置的执行顺序
+            @AutoConfigureBefore
+            @AutoConfigureAfter
+            @AutoConfigureOrder
+    （3）错误分析
+        FailureAnalyzer
+4、深挖Spring Boot的配置加载机制
+    外化配置加载顺序
+        jar包外部的application-{profile}.properties或yml
+        jar包内部的application-{profile}.properties或yml
+        jar包外部的application-.properties或yml
+        jar包内部的application-.properties或yml
+        @Configuration类上的@PropertySource
+        SpringApplication.setDefaultProperties()设置的默认属性
+        默认位置
+            ./config,./,classpath/config,classpath的/
+        修改名字或者路径
+            spring.config.name
+            spring.config.location
+            spring.config.additional-location
+        Relaxed Binding

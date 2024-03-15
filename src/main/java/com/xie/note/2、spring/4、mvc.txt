@@ -1,71 +1,272 @@
+1、定义
+    Spring MVC是Spring Framework提供的Web组件，全称是Spring Web MVC,是目前主流的实现MVC设计模式的框架，提供前端路由映射、视图解析等功能
+    MVC:模型，视图，控制器
 
-是否使用@ResponseBody的区别
-1、ServletInvocableHandlerMethod.invokeAndHandle
-    //获取返回值
-    Object returnValue = invokeForRequest(webRequest, mavContainer, providedArgs);
-    //处理返回值
-    this.returnValueHandlers.handleReturnValue(returnValue, getReturnValueType(returnValue), mavContainer, webRequest);
-    //上一句等价于
-    HandlerMethodReturnValueHandlerComposite.handleReturnValue
-    //获取处理的Handler
-    HandlerMethodReturnValueHandler handler = selectHandler(returnValue, returnType);
-        RequestResponseBodyMethodProcessor:
-            @Override
-            public boolean supportsReturnType(MethodParameter returnType) {
-                return (AnnotatedElementUtils.hasAnnotation(returnType.getContainingClass(), ResponseBody.class) ||
-                        returnType.hasMethodAnnotation(ResponseBody.class));
+2、主要组件
+    DispatcherServlet:前置控制器，负责调度其他组件的执行，可以降低不同组件之间的耦合性，是整个Spring MVC的核心模块
+    HandlerMapping:DispatcherServlet是通过 HandlerMapping把请求映射到不同的Handler
+    HandlerInterceptor:处理器拦截器，是一个接口，如果我们需要进行一些拦截处理，可以通过实现该接口完成
+    HandlerExecutionChain:处理器执行链，包括两部分内容:Handler和HandlerInterceptor(系统会有一个默认的HandlerInterceptor,如果有额外拦截处理，可以添加拦截器进行设置)
+    HandlerAdapter:
+        处理器适配器，Handler执行业务方法之前，需要进行一系列的操作包括表单的数据验证、数据类型转换、把表单数据封装到POJO等，
+            这些一系列的操作都是由HandlerAdapter完成，DispatcherServlet通过HandlerAdapter执行不同的Handler
+    Handler:处理器，完成具体的业务逻辑，相当于Servlet
+    ModelAndView:封装了模型数据和视图信息，作为Handler的处理结果，返回给DispatcherServlet
+    ViewResolver:视图解析器,DispatcherServlet通过它把逻辑视图解析为物理视图，最终把渲染的结果响应给客户端
+
+3、请求流程
+    客户端请求被DispatcherServlet接收
+    根据HandlerMapping映射到Handler
+    生成Handler和HandlerInterceptor
+    Handler和HandlerInterceptor以HandlerExecutionChain的形式一并返回给DispatcherServlet
+    DispatcherServlet通过HandlerAdapter调用Handler的方法完成业务逻辑处理
+    返回一个ModelAndView对象给DispatcherServlet
+    DispatcherServlet把获取的ModelAndView对象传给ViewResolver视图解析器，把逻辑视图解析成物理视图
+    ViewResolver返回一个View进行视图渲染(把模型填充到视图中)
+    DispatcherServlet把渲染后的视图响应给客户端
+
+4、视图解析
+    1、ViewResolver 与 View 接⼝
+        AbstractCachingViewResolver：缓存，抽象的基类
+        UrlBasedViewResolver
+        FreeMarkerViewResolver：freeMarker
+        ContentNegotiatingViewResolver:
+            根据我可以接受的返回类型来选择一个合适的响应，xml、json的
+            把相应的这些请求转给合适的ViewResolver继续做一个处理
+        InternalResourceViewResolver
+            最后的内置的解析器，它是用来处理JSP还有JSTL的
+        这些ViewResolver他们每一个都可以去做一个解析，返回一个View对象，再用View对象做一个呈现
+    2、如何做视图解析
+        initStrategies()
+            initViewResolvers()初始化了对应ViewResolver
+            它会加载spring上下文中的所有的ViewResolvers
+        doDispatch()
+            processDispatchResult()
+                视图名到具体视图的一个解析，解析出之后，做一个视图的呈现
+                如果没有返回视图的话，尝试RequestToViewNameTranslator
+                resolveViewName()解析View对象
+                如果有异常，会做一个异常视图的处理
+    3、扩展：是否使用@ResponseBody的区别
+      1、ServletInvocableHandlerMethod.invokeAndHandle
+          //获取返回值
+          Object returnValue = invokeForRequest(webRequest, mavContainer, providedArgs);
+          //处理返回值
+          this.returnValueHandlers.handleReturnValue(returnValue, getReturnValueType(returnValue), mavContainer, webRequest);
+          //上一句等价于
+          HandlerMethodReturnValueHandlerComposite.handleReturnValue
+          //获取处理的Handler
+          HandlerMethodReturnValueHandler handler = selectHandler(returnValue, returnType);
+              RequestResponseBodyMethodProcessor:
+                  @Override
+                  public boolean supportsReturnType(MethodParameter returnType) {
+                      return (AnnotatedElementUtils.hasAnnotation(returnType.getContainingClass(), ResponseBody.class) ||
+                              returnType.hasMethodAnnotation(ResponseBody.class));
+                  }
+              ModelAttributeMethodProcessor
+                  @Override
+                  public boolean supportsReturnType(MethodParameter returnType) {
+                      return (returnType.hasMethodAnnotation(ModelAttribute.class) ||
+                              (this.annotationNotRequired && !BeanUtils.isSimpleProperty(returnType.getParameterType())));
+                  }
+
+      2.1、@ResponseBody
+
+          （1）RequestResponseBodyMethodProcessor.handleReturnValue(){
+                  mavContainer.setRequestHandled(true);
+                  ServletServerHttpRequest inputMessage = createInputMessage(webRequest);
+                  ServletServerHttpResponse outputMessage = createOutputMessage(webRequest);
+                  writeWithMessageConverters(returnValue, returnType, inputMessage, outputMessage);
+                  //使用MappingJackson2HttpMessageConverter进行消息转换
+                  AbstractMessageConverterMethodProcessor.writeWithMessageConverters
+              }
+
+      2.2、非@ResponseBody
+          （1）ModelAttributeMethodProcessor.handleReturnValue(){
+                  if (returnValue != null) {
+                      String name = ModelFactory.getNameForReturnValue(returnValue, returnType);
+                      mavContainer.addAttribute(name, returnValue);
+                  }
+              }
+          (2)创建ModelAndView并返回
+              RequestMappingHandlerAdapter.getModelAndView()
+          (3)回到DispatcherServlet.doDispatch(){
+              mv = ha.handle(processedRequest, response, mappedHandler.getHandler());
+              applyDefaultViewName(processedRequest, mv);
+              mappedHandler.applyPostHandle(processedRequest, response, mv);
+              //处理视图
+              processDispatchResult(processedRequest, response, mappedHandler, mv, dispatchException);
+          }
+          (4)视图的渲染回到DispatcherServlet.render(mv, request, response);
+              //视图的解析
+              View view = resolveViewName(viewName, mv.getModelInternal(), locale, request);
+                  @Nullable
+                  protected View resolveViewName(String viewName, @Nullable Map<String, Object> model,
+                          Locale locale, HttpServletRequest request) throws Exception {
+
+                      if (this.viewResolvers != null) {
+                          for (ViewResolver viewResolver : this.viewResolvers) {
+                              View view = viewResolver.resolveViewName(viewName, locale);
+                              if (view != null) {
+                                  return view;
+                              }
+                          }
+                      }
+                      return null;
+                  }
+              //调用View的render真正的渲染视图
+              void render(@Nullable Map<String, ?> model, HttpServletRequest request, HttpServletResponse response)
+                          throws Exception;
+
+        初始化DispatcherServlet的时候，会初始化ViewResolver
+5、常用注解
+    1、定义映射关系
+        @Controller
+            标志该层为表现层或者控制层；具有component的基础含义，被spring管理，当成bean注入到spring容器中；可以让该类中的方法返回String，该String默认就是view-name
+            @RestController: @Controller，@ResponseBody
+        @RequestMapping
+            path(value): 指定请求的实际访问地址，默认@RequestMapping("url")的值url即为value的值
+            method:请求的method的类型，主要有：GET、POST、DELETE、PUT
+            params：指定request中必须包含某些参数值，包含才让该方法处理请求
+            headers：指定request中必须包含某些指定的header值，包含才能让该方法处理请求。
+            consumes：指定处理请求的提交内容类型（Content-Type），例如：application/json, text/html;
+            produces：指定返回的内容类型，当且仅当request请求头中的(Accept)类型中包含该指定类型才返回；
+        一些快捷方式
+            @GetMapping：@RequestMapping(method = RequestMethod.GET)
+            @PostMapping：@RequestMapping(method = RequestMethod.POST)
+            @PutMapping：@RequestMapping(method = RequestMethod.PUT)
+            @DeleteMapping：@RequestMapping(method = RequestMethod.DELETE)
+            @PatchMapping：@RequestMapping(method = RequestMethod.PATCH)
+    2、请求相关
+        @RequestParam：
+            常用来处理简单类型的绑定，通过request.getParameter() 获取的String可直接转换为简单类型的情况
+            用来处理Content-Type: 为application/x-www-form-urlencoded编码的内容，提交方式GET、POST；
+            defaultValue 表示设置默认值，required通过boolean设置是否是必须要传入的参数，value 值表示接受的传入的参数类型。
+        @RequestBody：
+            该注解常用来处理Content-Type: 不是application/x-www-form-urlencoded编码的内容，例如application/json, application/xml等；
+            它是通过使用HandlerAdapter 配置的HttpMessageConverters来解析post data body，然后绑定到相应的bean上的。
+            (使用FormHttpMessageConverter可以处理application/x-www-form-urlencoded)
+        @RequestHeader
+            可以把Request请求header部分的值绑定到方法的参数上
+            public void displayHeaderInfo(@RequestHeader("Accept-Encoding") String encoding, @RequestHeader("Keep-Alive") long keepAlive)
+        @CookieValue
+            绑定 cookie 的值到 Controller 方法参数
+            public String testCookieValue(@CookieValue ( "hello" ) String cookieValue, @CookieValue String hello)
+        @PathVariable：
+            用于将请求URL中的模板变量映射到功能处理方法的参数上，即取出uri模板中的变量作为参数
+
+        RequestEntity
+            表示完整的请求报文（用的少，几乎不用）
+            其中getHeaders()获取请求报文的请求头信息
+            其中getBody()获取请求报文的请求体信息
+    3、返回相关
+        @ResponseBody：
+            将Controller的方法返回的对象，通过适当的HttpMessageConverter转换为指定格式后，写入到Response对象的body数据区。
+        @ResponseStatus
+            指定控制器方法抛出异常时的 HTTP 状态码
+            （1）和@RequestMapping配合
+                如果不使用，默认返回200，表示浏览器中共南昌渲染试图
+                如果使用，不设定200，浏览器仍可正常渲染试图，但是可回调error函数
+            （2）和@ExceptionHandler配合
+                和1区别不大
+            （3）加在自定义异常上面
+                如果不加，在代码中直接抛出该自定义异常，会以500的HTTP状态码响应到浏览器
+                如果加，在代码中直接抛出该自定义异常，会以指定的HTTP状态码和指定的reason响应到浏览器
+        ResponseEntity
+            ResponseEntity 设置响应到浏览器的响应报文
+            ResponseEntity类型用在控制器方法的返回值，返回的ResponseEntity就是响应到浏览器的响应报文。
+
+
+
+6、数据绑定&类型转换&绑定异常处理
+    43、如何定义处理方法下（没看懂，需要刷视频；例子：more-complex-controller-demo）
+        类型转换WebMvcConverter（MoneyFormatter.java）
+            Spring Boot 在 WebMvcAutoConfiguration 中实现了⼀个
+            添加⾃定义的 Converter
+            添加⾃定义的 Formatter
+        定义校验
+            通过 Validator 对绑定结果进⾏校验
+                Hibernate Validator
+            @Valid 注解
+            BindingResult
+                public Coffee addCoffee(@Valid NewCoffeeRequest newCoffee,BindingResult result)
+        Multipart 上传
+            配置 MultipartResolver
+                Spring Boot ⾃动配置 MultipartAutoConfiguration
+            ⽀持类型 multipart/form-data
+            MultipartFile 类型
+
+6、异常处理机制
+    核心接口：HandlerExceptionResolver
+    实现类：
+        SimpleMappingExceptionResolver
+        DefaultHandlerExceptionResolver
+        ResponseStatusExceptionResolver
+        ExceptionHandlerExceptionResolver
+
+    异常处理方法：@ExceptionHandler
+    添加位置
+        @Controller/@RestController
+            优先级高
+        @ControllerAdvice/@RestControllerAdvice
+            优先级低
+
+    代码：
+        @ControllerAdvice
+        public class GlobalControllerAdvice {
+            @ExceptionHandler(ValidationException.class)
+            @ResponseStatus(HttpStatus.BAD_REQUEST)
+            public Map<String, String> validationExceptionHandler(ValidationException exception) {
+                Map<String, String> map = new HashMap<>();
+                map.put("message", exception.getMessage());
+                return map;
             }
-        ModelAttributeMethodProcessor
-            @Override
-            public boolean supportsReturnType(MethodParameter returnType) {
-                return (returnType.hasMethodAnnotation(ModelAttribute.class) ||
-                        (this.annotationNotRequired && !BeanUtils.isSimpleProperty(returnType.getParameterType())));
-            }
-
-2.1、@ResponseBody
-
-    （1）RequestResponseBodyMethodProcessor.handleReturnValue(){
-            mavContainer.setRequestHandled(true);
-            ServletServerHttpRequest inputMessage = createInputMessage(webRequest);
-            ServletServerHttpResponse outputMessage = createOutputMessage(webRequest);
-            writeWithMessageConverters(returnValue, returnType, inputMessage, outputMessage);
-            //使用MappingJackson2HttpMessageConverter进行消息转换
-            AbstractMessageConverterMethodProcessor.writeWithMessageConverters
         }
-
-2.2、非@ResponseBody
-    （1）ModelAttributeMethodProcessor.handleReturnValue(){
-        if (returnValue != null) {
-            String name = ModelFactory.getNameForReturnValue(returnValue, returnType);
-            mavContainer.addAttribute(name, returnValue);
-        }
-        }
-    (2)创建ModelAndView并返回
-        RequestMappingHandlerAdapter.getModelAndView()
-    (3)回到DispatcherServlet.doDispatch(){
-        mv = ha.handle(processedRequest, response, mappedHandler.getHandler());
-        applyDefaultViewName(processedRequest, mv);
-        mappedHandler.applyPostHandle(processedRequest, response, mv);
-        //处理视图
-        processDispatchResult(processedRequest, response, mappedHandler, mv, dispatchException);
-    }
-    (4)视图的渲染回到DispatcherServlet.render(mv, request, response);
-        //视图的解析
-        View view = resolveViewName(viewName, mv.getModelInternal(), locale, request);
-            @Nullable
-            protected View resolveViewName(String viewName, @Nullable Map<String, Object> model,
-                    Locale locale, HttpServletRequest request) throws Exception {
-
-                if (this.viewResolvers != null) {
-                    for (ViewResolver viewResolver : this.viewResolvers) {
-                        View view = viewResolver.resolveViewName(viewName, locale);
-                        if (view != null) {
-                            return view;
-                        }
+7、拦截器
+    （1）核心接口：
+        HandlerInterceptor
+            boolean preHandle();
+                预处理，如权限验证
+            void postHandle();
+                视图呈现前
+            void afterCompletion();
+                视图呈现后
+    （2）针对@ResponseBody和ResponseEntity
+        ResponseBodyAdvice
+    （3）针对异步请求的接口
+        AsyncHandlerInterceptor
+            void afterConcurrentHandlingStarted();
+    （4）拦截器的配置方式
+        常规方法：
+            WebMvcConfigurer.addInterceptors();
+        Spring boot中的配置：
+            创建一个@Configuration的WebMvcConfigurer配置类
+            不能带有@EnableWebMvc（想彻底控制MVC除外）
+        代码
+            配置类
+                @Configuration
+                public class InterceptorConfig implements WebMvcConfigurer {
+                    @Override
+                    public void addInterceptors(InterceptorRegistry registry) {
+                        registry.addInterceptor(new CustomerInterceptor())
+                            .addPathPatterns("/user/*");
                     }
                 }
-                return null;
-            }
-        //调用View的render真正的渲染视图
-        void render(@Nullable Map<String, ?> model, HttpServletRequest request, HttpServletResponse response)
-        			throws Exception;
+            拦截器
+                @Slf4j
+                public class CustomerInterceptor implements HandlerInterceptor {
+                    @Override
+                    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+                        log.info("preHandle");
+                        return HandlerInterceptor.super.preHandle(request, response, handler);
+                    }
+                    @Override
+                    public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler, ModelAndView modelAndView) throws Exception {
+                        log.info("postHandle");
+                        HandlerInterceptor.super.postHandle(request, response, handler, modelAndView);
+                    }
+                    @Override
+                    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
+                        log.info("afterCompletion");
+                        HandlerInterceptor.super.afterCompletion(request, response, handler, ex);
+                    }
+                }

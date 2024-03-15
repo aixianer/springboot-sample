@@ -1,0 +1,47 @@
+1、Spring Boot启动流程
+    //1。创建一个ApplicationContext实例，即我们常说的IOC容器
+    ApplicationContext context = createApplicationContext()
+    //2。将主类(primaryCLass)注册到IOC器中 (简单但重要的第一步)
+    loadSourceClass(context, primaryclass);
+    //3。递归加载并处理所有的配置类
+    processConfigurationClasses(context);
+        步骤：
+            首先从Ioc容器中取出当前存在的源配置类
+            创建一个配置类解析器，然后递归加载并处理应用中所有的配置类
+                1.处理@ComponentScan: 根@ComponentScan扫指定的package，得到一系列配置类
+                2.处理注解@Import: 根据注Import，得到一系列被导入的配置类
+                3.处理@Bean方法
+                4.处理@Import导入的ImportBeanDefinitionRegistrar
+                5.加入到一个全局的配置类集合中
+            向IOC容器注册@Bean方法对应的BeanDefinition
+            向IOC容器注册ImportBeanDefinitionRegistrar方法对应的BeanDefinition
+        涉及注解
+        @ComponentScan
+            对指定的package进行扫描，找到其中符合条件的类，默认时搜索被注解@Compenent修饰的类
+            通过basePackages或者basePackageClasses，来指定要进行扫描的package
+            如果未指定package，则默认扫描当前@ComponentScan所修饰类的package
+        @Import
+            显示的从别的地方加载配置类的方式
+            支持导入
+                导入普通类
+                导入选择器ImportSelector
+                导入注册器ImportBeanDefinitionRegistrar
+
+    //4。实例化所有的单例Bean(Singleton Bean)
+    instantiateSingletonBeans(context);
+    /5。如果是web应用，则启动web 服务器(例如Tomcat)
+    startWebSer ver(context);
+
+    机制
+        @SpringBootApplication-》@EnableAutoConfiguration-》AutoConfigurationImportSelector
+        如何实现AutoConfigurationImportSelector
+        Spring Factory机制
+            介绍
+                Java SPI的延伸和扩展
+                Spring框架的基础机制，在Spring以及SpringBoot中随处课件
+                实现了SpringBoot的自动配置
+            原理：
+                从classpath中读取到的所有jar中的META-IF/spring.factory，
+                    然后根据指定的key去找到对应的value
+
+2、配置加载顺序

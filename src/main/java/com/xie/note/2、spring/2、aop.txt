@@ -1,211 +1,29 @@
-一、AOP的特性概念
-    通知（Advice）: AOP 框架中的增强处理。通知描述了切面何时执行以及如何执行增强处理。
-    切点（PointCut）: 可以插入增强处理的连接点。
-
-    连接点（Join point）: 连接点表示应用执行过程中能够插入切面的一个点，这个点可以是方法的调用、异常的抛出。在 Spring AOP 中，连接点总是方法的调用。
-
-    切面（Aspect）: 切面是通知和切点的结合。
-    引入（Introduction  x）：允许我们向现有的类添加新的方法或者属性。
-    织入（Weaving）: 将增强处理添加到目标对象中，并创建一个被增强的代理对象。
-二、初识AOP
-    1、切点指示器
-        arg()、@arg()、execution()、this()、target()、@target()、within、@within、@annotation
-        只有execution指示器是唯一的执行匹配，而其他的指示器都是用于限制匹配的
-    2、通知的类型
-        @Before、@After、@AfterReturning、@AfterThrowing、@Around
-三、配置方式
-    1、注解方式
-        （1）@Pointcut注解声明切点表达式，然后使用表达式
-            如：
-                @Aspect
-                @Component
-                public class BuyAspectJ {
-
-                    @Pointcut("execution(* com.alibaba.spring.aop.IBuy.buy(..))")
-                    public void point(){}
-
-                    @Before("point()")
-                    public void hehe() {
-                        System.out.println("before ...");
-                    }
-                }
-        （2）参数的获取
-            @Aspect
-            @Component
-            public class BuyAspectJ {
-                @Pointcut("execution(String com.alibaba.spring.aop.IBuy.buy(double)) && args(price) && bean(girl)")
-                public void gif(double price) {
-                }
-                @Around("gif(price)")
-                public String hehe(ProceedingJoinPoint pj, double price){
-                    try {
-                        pj.proceed();
-                        if (price > 68) {
-                            System.out.println("女孩买衣服超过了68元，赠送一双袜子");
-                            return "衣服和袜子";
-                        }
-                    } catch (Throwable throwable) {
-                        throwable.printStackTrace();
-                    }
-                    return "衣服";
-                }
-            }
-        （3）配置织入
-            @EnableAspectJAutoProxy() 启用Spring AOP，通过proxyTargetClass的赋值来决定Spring AOP动态代理机制；
-            proxyTargetClass为false时，是通过jdk基于接口方式进行织入，这时候代理生成的是一个接口对象；
-            proxyTargetClass 为 true时，则会使用 cglib 的动态代理方式，这时候代理生成的是一个继承代理对象， 这种方式的缺点是拓展类的方法被final修饰时，无法进行织入
-            如：
-                @Configuration
-                @EnableAspectJAutoProxy(proxyTargetClass = true)
-                public class AppConfig {
-                }
-    2、xml方式
-        （1）切点表达式
-            <?xml version="1.0" encoding="UTF-8"?>
-            <beans xmlns="http://www.springframework.org/schema/beans"
-                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:aop="http://www.springframework.org/schema/aop"
-                   xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd">
-
-                <bean id="boy" class="com.alibaba.spring.aop.Boy"></bean>
-                <bean id="girl" class="com.alibaba.spring.aop.Girl"></bean>
-                <bean id="buyAspectJ" class="com.alibaba.spring.aop.BuyAspectJ"></bean>
-
-                <aop:config proxy-target-class="true">
-                    <aop:pointcut id="apoint" expression="execution(* com.alibaba.spring.aop.IBuy.buy(..))"/>
-                    <aop:aspect id="qiemian" ref="buyAspectJ">
-                        <aop:before pointcut-ref="apoint" method="hehe"/>
-                        <aop:after pointcut-ref="apoint" method="haha"/>
-                        <aop:after-returning pointcut-ref="apoint" method="xixi"/>
-                        <aop:around pointcut-ref="apoint" method="xxx"/>
-                    </aop:aspect>
-                </aop:config>
-            </beans>
-        （2）参数获取
-            <?xml version="1.0" encoding="UTF-8"?>
-            <beans xmlns="http://www.springframework.org/schema/beans"
-                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:aop="http://www.springframework.org/schema/aop"
-                   xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd">
-
-                <bean id="boy" class="com.alibaba.spring.aop.Boy"></bean>
-                <bean id="girl" class="com.alibaba.spring.aop.Girl"></bean>
-                <bean id="buyAspectJ" class="com.alibaba.spring.aop.BuyAspectJ"></bean>
-
-                <aop:config proxy-target-class="true">
-                    <aop:pointcut id="apoint" expression="execution(String com.alibaba.spring.aop.IBuy.buy(double)) and args(price) and bean(girl)"/>
-                    <aop:aspect id="qiemian" ref="buyAspectJ">
-                        <aop:around pointcut-ref="apoint" method="hehe"/>
-                    </aop:aspect>
-                </aop:config>
-            </beans>
-        3、配置织入
-            CGlib 代理方式：
-                <aop:config proxy-target-class="true"> </aop:config>
-            JDK 代理方式：
-                <aop:config proxy-target-class="false"> </aop:config>
-四、Spring AOP 实现原理
-    1、静态代理
-        静态代理，代理类和被代理类实现了同样的接口，代理类同时持有被代理类的引用，这样，当我们需要调用被代理类的方法时，可以通过调用代理类的方法来做到。
-    2、动态代理
-        （1）JDK动态代理
-            代理类继承InvocationHandler，实现invoke方法
-            被代理类（object）传入代理类
-            method.invoke(object, args);
-            代码示例：
-                @Override
-                public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-                    System.out.println("object: " + object.getClass().getSimpleName());
-                    System.out.println("proxy: " + proxy.getClass().getSimpleName());
-
-                    if ("meeting".equals(method.getName())) {
-                        System.out.println("代理先准备会议材料...");
-                        return method.invoke(object, args);
-                    } else if ("evaluate".equals(method.getName())) {
-                        if(args[0] instanceof String) {
-                            if ("James".equals(args[0])) {
-                                System.out.println("James 犯过错误，所以考评分数较低...");
-                                return 70;
-                            }
-                        }
-                        return method.invoke(object, args);
-                    }
-                    return null;
-                }
-        （2）CGlib动态代理
-            继承MethodInterceptor接口，实现intercept方法，如：
-                @Override
-                    public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
-                        if ("meeting".equals(method.getName())) {
-                            System.out.println("代理先准备会议材料...");
-                            return methodProxy.invokeSuper(o, objects);
-                        } else if ("evaluate".equals(method.getName())) {
-                            if(objects[0] instanceof String) {
-                                if ("James".equals(objects[0])) {
-                                    System.out.println("James 犯过错误，所以考评分数较低...");
-                                    return 70;
-                                }
-                            }
-                            return methodProxy.invokeSuper(o, objects);
-                        }
-                        return null;
-                    }
-            使用代码，定义Enhancer，设置父类和回调；使用create创建被代理的对象；调用
-            Enhancer enhancer = new Enhancer(); // 通过CGLIB动态代理获取代理对象的过程
-            enhancer.setSuperclass(Leader.class); // 设置enhancer对象的父类
-            enhancer.setCallback(new LeaderMethodInterceptor()); // 设置enhancer的回调对象
-            Leader proxy= (Leader)enhancer.create(); // 创建代理对象
-            // 通过代理对象调用目标方法
-            proxy.meeting();
-五、Spring AOP和AspectJ比较
-    1、比较
-        Spring AOP是基于Spring IoC实现的，它解决大部分常见的需求，但它并不是一个完整的AOP解决方案。
-        对于非Spring容器管理的对象，它更没有办法了。而AspectJ旨在提供完整的AOP方案，因此也会更复杂。
-    2、织入方式
-        AspectJ是运行时织入，利用ajc（AspectJ的编译器）
-        AOP是运行时织入，主要使用了两种技术：JDK动态代理和CGLIB代理。对于接口使用JDK Proxy，而继承的使用CGLIB。
-
-        因为织入方式的区别，两者所支持的Joinpoint也是不同的。
-        像final的方法和静态方法，无法通过动态代理来改变，所以Spring AOP无法支持。
-        但AspectJ是直接在运行前织入实际的代码，所以功能会强大很多。
-    3、性能
-        编译织入会比较运行时织入快很多，Spring AOP是使用代理模式在运行时才创建对应的代理类，效率没有AspectJ高。
-
-
-java动态代理，aspectJ
-
-before,after,around...
-
-六、Spring事务的原理
- 扩展链接：https://blog.csdn.net/rongtaoup/article/details/127688984?ops_request_misc=&request_id=&biz_id=102&utm_term=spring%20%E4%BA%8B%E5%8A%A1%E7%9A%84%E5%8E%9F%E7%90%86&utm_medium=distribute.pc_search_result.none-task-blog-2~all~sobaiduweb~default-1-127688984.142^v99^pc_search_result_base2&spm=1018.2226.3001.4187
- AOP介绍
-     通过 CGlib 和 JDK 动态代理等方式来实现运行期动态方法增强，目的是将与业务无关的代码单独抽离出来，逻辑解耦，降低系统的耦合性，提高程序的可重用性和开发效率。
-     JDK动态代理面向接口，通过反射生成目标代理接口的匿名实现类；
-     CGLIB动态代理则通过继承，使用字节码增强技术 为目标代理类生成代理子类。
-     Spring 默认对接口实现使用JDK动态代理，对具体类使用CGLIB，同时也支持配置全局使用CGLIB来生成代理对象。
- 事务原理
-     1、使用AOP环绕增强的方式，在方法执行之前开启事务，在方法执行之后提交或者回滚事务
-     2、对应的实现为TransactionInterceptor，其实现了MethodInterceptor
-     3、事务拦截器（TransactionInterceptor）
-         TransactionInterceptor.invoke()
-             1、获取TargetClass
-             2、调用父类的TransactionAspectSupport #invokeWithinTransaction处理事务
-     4、Spring事务管理的基类：TransactionAspectSupport
-         TransactionAspectSupport 是Spring 事务管理的基类，其支持声明式事务、编程式事务。
-         1、其通过模板方法模式规定了事务的执行流程。
-             PlatformTransactionManager：声明式事务管理器
-             ReactiveTransactionManager：编程式事务管理器
-         2、TransactionAspectSupport #invokeWithinTransaction 事务处理方法主流程如下：
-              获取事务属性源 TransactionAttributeSource ，是一个策略接口，主要用来获取事务属性，根据不同类型的源，确定事务属性。
-              根据属性源获取事务属性TransactionAttribute，是直接从 事务属性缓存Map<Object, TransactionAttribute> attributeCache 中获取的。
-                 Spring 容器初始化时，Bean后置处理器 会识别到 @Transactional注解 的类和方法，将事务属性放入缓存attributeCache 中，并创建 AOP 代理对象。
-                 TransactionAttribute继承TransactionDefinitio事务属性，包含：事务的隔离级别、事务的传播类型、事务超时时间、事务名称、事务是否只读等。
-         3、确定事务管理器PlatformTransactionManager
-             如果没有指定事务管理器，会获取一个默认的DataSourceTransactionManager
-             PlatformTransactionManager
-                 getTransaction：获取当前激活的事务或者创建一个事务
-                 commit：提交当前事务
-             rollback：回滚当前事务
-         4、获取 joinpoint 标识，用于确定事务名称，值是方法全路径。
-         5、创建事务 createTransactionIfNecessary
-             负责开启事务
-         6、回调执行目标方法：invocation.proceedWithInvocation(); 这里就是调用被 Spring AOP 增强的事务方法了。
-         7、目标方法执行成功后，调用 DataSourceTransactionManager # doCommit 提交事务。
+1、定义：
+    这种在运行时生成代理对象来织入的，还可以在编译期、类加载期织入，动态地将代码在不改变原有的逻辑情况下切入到类的指定方法、
+    指定位置上的编程思想就是面向切面的编程。
+2、组成部分
+    通知（Advice）
+        AOP 框架中的增强处理。通知描述了切面何时执行以及如何执行增强处理。
+    连接点（Join point）
+        连接点表示应用执行过程中能够插入切面的一个点，这个点可以是方法的调用、异常的抛出。在 Spring AOP 中，连接点总是方法的调用。
+    切点（PointCut）
+        一组连接点的总称,用于指定某个增强应该在何时被调用。可以插入增强处理的连接点。
+    切面（Aspect）
+        切面是通知和切点的结合。
+    引入（Introduction  x）
+        允许我们向现有的类添加新的方法或者属性。
+    织入（Weaving）
+        将增强处理添加到目标对象中，并创建一个被增强的代理对象。
+3、AOP Proxy
+    （1）JDK动态代理
+        Spring AOP中默认使用的方式，但是只能为接口实现动态代理
+        原理：
+            JDK动态代理主要涉及到java.lang.reflect包中的两个类：Proxy和InvocationHandler。
+            InvocationHandler是一个接口，通过实现该接口定义横切逻辑，并通过反射机制调用目标类的代码，
+                动态将横切逻辑和业务逻辑编制在一起。
+            Proxy利用InvocationHandler动态创建一个符合某一接口的实例，生成目标类的代理对象。
+    （2）CGLIB代理
+        如果类没有实现接口，就需要使用CGLIB作为代理
+        可以在运行期扩展Java类与实现Java接口，CGLib封装了asm，可以再运行期动态生成新的class
+        由于其使用ASM字节码操作库，相对于JDK动态代理而言效率稍低
+4、
