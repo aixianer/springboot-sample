@@ -11,17 +11,112 @@
         起步依赖：starter dependency
         命令行页面
         Actuator:监控
+2、Spring的启动流程
+    SpringApplication.run()
+    （1）创建IOC容器
+        ApplicationContext context = createApplicationContext();
+    （2）将主类（启动类）注册到IOC容器中
+        loadSourceClass(context,primaryClass);
+    （3）递归并加载并处理所有的配置类
+        processConfigurationClasses(context);
+        SpringBoot自动找到所有配置类，然后加载和处理他们，“自动配置”属于其中一环
+        （1）首先从IOC容器中取出当前存在的源配置类
+        （2）创建一个配置类解析器，然后递归加载并处理应用中所有的配置类
+            （1）处理@ComponentScan:根据@ComponentScan扫描指定的package，得到一系列的配置类
+            （2）处理注解@Import,根据@Import，得到一些被导入的配置类
+            （3）处理@Bean方法
+            （4）处理@Import导入的ImportBeanDefinitionRegistar
+            （5）加入到一个全局的配置类集合中
+        （3.1）向IOC容器中注册@Bean方法对应的BeanDefinition
+        （3.2）向IOC容器中刚注册ImportBeanDefinitionRegistrar导入的BeanDefinition
+    （4）实例化所有的单例bean
+        instantiateSingleTonBeans(context);
+        依赖注入和自动装配，就属于此环节
+    （5）启动web服务器
+        startWebServer(context);
+    扩展：
+        （1）Spring加载配置类的两种方式：
+            @ComponentScan
+                是来自Spring的一个注解，它的作用是对指定的package进行扫描，找到其中符合条件的类，
+                默认是搜索被注解@Component修饰的配置类
+                通过basePackages或者basePackageClasses，来指定扫描的package
+                如果没有指定package，则默认扫描当前的@ComponentScan所修饰的类所在的package
+            @Import
+                它的作用是提供了一种显示地从其他地方加载配置类的方式，这样可以避免使用性能较差的组件扫描
+                支持导入
+                    普通类
+                    接口ImportSelector的实现类
+                    接口ImportBeanDefinitionRegistrar的实现类
+        （2）@SpringBootApplication
+                @SpringBootConfiguration
+                    @Target({ElementType.TYPE})
+                    @Retention(RetentionPolicy.RUNTIME)
+                    @Documented
+                    @Configuration
+                        被此注解间接修饰，即“源配置类”
+                @EnableAutoConfiguration
+                    @Target({ElementType.TYPE})
+                    @Retention(RetentionPolicy.RUNTIME)
+                    @Documented
+                    @Inherited
+                    @AutoConfigurationPackage
+                    @Import({AutoConfigurationImportSelector.class})
+                        最终会导入AutoConfigurationImportSelector来实现自动配置
+                @ComponentScan
+                    对“源配置类”所在的package进行组件扫描
+                    @Retention(RetentionPolicy.RUNTIME)
+                    @Target({ElementType.TYPE})
+                    @Documented
+                    @Repeatable(ComponentScans.class)
+3、SpringBoot自动配置原理剖析
+    如何实现AutoConfigurationImportSelector
+    SpringFactories机制
+        它的核心逻辑是从classpath中读取到所有的jar包中的META-IF/spring.factories
+        然后根据指定的key从配置文件中解析出对应的value值
+    AutoConfigurationImportSelector实现流程（主要方法：selectImports）
+        （1）通过Spring Factory机制加载配置文件
+            通过ClassLoader去获取classpath中的配置文件META-INF/spring.factories
+        （2）找到所有的自动配置类
+            所有的配置文件中，筛选出以EnableAutoConfiguration.class为key的，符合条件的配置类
+        （3）根据注解@Conditional过滤掉不必要自动配置的类
+            只有在特定条件满足时，才会向IOC容器注册指定的组件
+            可以理解为IF语句
 
-2、Spring Boot自动配置原理
-    自动配置
+    扩展Java SPI和SpringFactories机制
+        约定的配置文件
+            Java SPI:
+                META-IF/services/<Service接口的全限定名>
+                文件内容是Service Provider类的全限定名，每个类占据一行
+            SpringFactories
+                META-INF/spring.factories
+                文件内容是key=value1,value2...valueN（key是某个类名，value是逗号隔开的多个类名）
+        第三方jar提供配置文件
+            高内聚低耦合，代码+配置都负责
+            使用classloader读取classpath中的配置文件
+        实现方式
+            Java SPI:
+                通过类ServiceLoader，返回一个Service Provider的对象实例集合
+            Spring Factory
+                通过SpringFactoriesLoader，返回要给类名的集合，可以根据实际需求对这些类名进行下一步处理
+4、Spring Boot自动配置原理
+    （1）自动配置(Auto-Configuration)
         基于添加JAR依赖自动对Spring Boot应用程序进行配置
+        它为SpringBoot框架的“开箱即用”提供了基础的支撑
+    （2）配置类（Configuration Class）
+        广义：
+            被@Component直接或者间接修饰的类
+            即我们常说的Spring组件，其中包括了Configuration类
+        狭义：
+            被注解@Configuration修饰的类
+
+
         spring-boot-autoconfiguration
-    开启自动配置
+    （2）开启自动配置
         @EnableAutoConfiguration
             exclude = Class<?>[]
                 排除自动配置类
         @SpringBootApplication
-    自动配置的实现原理
+    （3）自动配置的实现原理
         AutoConfigurationImportSelector
         META-INF/spring.factories
             ***.autoconfigure.EnableAutoConfiguration
