@@ -60,6 +60,9 @@
                     @Documented
                     @Inherited
                     @AutoConfigurationPackage
+                        该注解上有一个**@Import(AutoConfigurationPackages.Registrar.class)**注解，其中 Registrar 类的作用是将启动类所在包下的所有子包的组件扫描注入到spring容器中。
+                        自动导入包
+                        将主配置类（@SpringBootApplication 标注的类）所在的包下面所有的组件都扫描注冊到 spring 容器中。
                     @Import({AutoConfigurationImportSelector.class})
                         最终会导入AutoConfigurationImportSelector来实现自动配置
                 @ComponentScan
