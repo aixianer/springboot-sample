@@ -1,0 +1,109 @@
+RestTemplate
+    1、介绍
+        RestTemplate是一个执行HTTP请求的同步阻塞式工具类，它仅仅只是在 HTTP 客户端库（例如 JDK HttpURLConnection，Apache HttpComponents，okHttp 等）基础上，
+            封装了更加简单易用的模板方法 API，方便程序员利用已提供的模板方法发起网络请求和处理，能很大程度上提升我们的开发效率
+        默认使用了JDK自带的HttpURLConnection作为底层HTTP客户端实现
+    2、改造默认的HttpURLConnection实现
+        （1）改造1
+            @Bean
+            public RestTemplate restTemplate(){
+                RestTemplate restTemplate = new RestTemplate(getClientHttpRequestFactory());
+                return restTemplate;
+            }
+
+            /**
+             * 使用HttpClient作为底层客户端
+             * @return
+             */
+            private ClientHttpRequestFactory getClientHttpRequestFactory() {
+                int timeout = 5000;
+                RequestConfig config = RequestConfig.custom()
+                        .setConnectTimeout(timeout)
+                        .setConnectionRequestTimeout(timeout)
+                        .setSocketTimeout(timeout)
+                        .build();
+                CloseableHttpClient client = HttpClientBuilder
+                        .create()
+                        .setDefaultRequestConfig(config)
+                        .build();
+                return new HttpComponentsClientHttpRequestFactory(client);
+            }
+
+            /**
+             * 使用OkHttpClient作为底层客户端
+             * @return
+             */
+            private ClientHttpRequestFactory getClientHttpRequestFactory(){
+                OkHttpClient okHttpClient = new OkHttpClient.Builder()
+                        .connectTimeout(5, TimeUnit.SECONDS)
+                        .writeTimeout(5, TimeUnit.SECONDS)
+                        .readTimeout(5, TimeUnit.SECONDS)
+                        .build();
+                return new OkHttp3ClientHttpRequestFactory(okHttpClient);
+            }
+        （2）改造2
+            @Bean
+            public HttpComponentsClientHttpRequestFactory requestFactory() {
+                PoolingHttpClientConnectionManager connectionManager =
+                        new PoolingHttpClientConnectionManager(30, TimeUnit.SECONDS);
+                connectionManager.setMaxTotal(200);
+                connectionManager.setDefaultMaxPerRoute(20);
+
+                CloseableHttpClient httpClient = HttpClients.custom()
+                        .setConnectionManager(connectionManager)
+                        .evictIdleConnections(30, TimeUnit.SECONDS)
+                        .disableAutomaticRetries()
+                        // 有 Keep-Alive 认里面的值，没有的话永久有效
+                        //.setKeepAliveStrategy(DefaultConnectionKeepAliveStrategy.INSTANCE)
+                        // 换成自定义的
+                        .setKeepAliveStrategy(new CustomConnectionKeepAliveStrategy())
+                        .build();
+
+                HttpComponentsClientHttpRequestFactory requestFactory =
+                        new HttpComponentsClientHttpRequestFactory(httpClient);
+
+                return requestFactory;
+            }
+
+            @LoadBalanced
+            @Bean
+            public RestTemplate restTemplate(RestTemplateBuilder builder) {
+                return builder
+                        .setConnectTimeout(Duration.ofMillis(100))
+                        .setReadTimeout(Duration.ofMillis(500))
+                        .requestFactory(this::requestFactory)
+                        .build();
+            }
+    3、常用方法
+        （1）GET请求
+            getForObject():返回值是HTTP协议的响应体
+            getForEntity():返回的是ResponseEntity，ResponseEntity是对HTTP响应的封装，除了包含响应体，还包含HTTP状态码、contentType、contentLength、Header等信息
+            示例：
+            直接发起：
+                ResponseBean responseBean = restTemplate.getForObject(url, ResponseBean.class);
+                ResponseEntity<ResponseBean> response = restTemplate.getForEntity(url, ResponseBean.class);
+            带参数发起：
+                ResponseBean responseBean = restTemplate.getForObject(url, ResponseBean.class, "001", "张三");
+            header参数：
+                //请求头
+                HttpHeaders headers = new HttpHeaders();
+                headers.add("token", "123456789");
+                //封装请求头
+                HttpEntity<MultiValueMap<String, Object>> formEntity = new HttpEntity<>(headers);
+                ResponseEntity<Map> exchange = restTemplate.exchange('请求的url', HttpMethod.GET, formEntity, Map.class);
+        （2）POST请求
+            postForObject():返回body对象
+            postForEntity():返回全部的信息
+
+             HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(map, headers);
+            //发起请求
+            ResponseBean responseBean = restTemplate.postForObject(url, request, ResponseBean.class);
+
+             //入参
+            RequestBean request = new RequestBean();
+            request.setUserName("唐三藏");
+            request.setUserPwd("123456789");
+
+            //发送post请求，并打印结果，以String类型接收响应结果JSON字符串
+            ResponseBean responseBean = restTemplate.postForObject(url, request, ResponseBean.class);
+            System.out.println(responseBean.toString());

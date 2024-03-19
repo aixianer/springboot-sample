@@ -1,0 +1,50 @@
+ribbon
+    1、是什么
+        Ribbon是Netflix发布的云中间层服务开源项目，其主要功能是提供客户端实现负载均衡算法。Ribbon客户端组件提供一系列完善的配置项如连接超时，重试等
+        Ribbon是一个客户端负载均衡器，我们可以在配置文件中Load Balancer后面的所有机器，Ribbon会自动的帮助你基于某种规则（如简单轮询，随机连接等）去连接这些机器，我们也很容易使用Ribbon实现自定义的负载均衡算法。
+    2、如何使用
+        RestTemplate配置类添加@LoadBalanced注解
+    3、策略
+        （1）RoundRobinRule：
+            简单轮询服务列表来选择服务器，它是Ribbon默认的负载均衡策略
+        （2）AvailabilityFilterRule
+            对以下两种服务器进行忽略：
+                （1）在默认情况下，这台服务器如果3次连接失败，这台服务器就会被设置为“短路”状态，短路状态将持续30秒，如果再次连接失败，短路持续时间就会几何级地增加。
+                （2）并发数过高的服务器，如果一个服务器的并发连接数过高，配置了AvailabilityFilteringRule规则的客户端也会将其忽略。并发连接数的上限，可以由客户端的ActiveConnectionsLimit进行配置。
+        （3）WeightedResponseTimeRule
+            为每一个服务器赋予一个权重值。服务器响应时间越长，这个服务器的权重就越小。这个规则会随机选择服务器，这个权重会影响服务器的选择。
+        （4）ZoneAvoidanceRule
+            以区域可用的服务器为基础进行服务器的选择，使用Zone对服务器进行分类，这个Zone可用理解为一个机房，一个机架等。而后再对Zone内对多个服务做轮询。
+        （5）BestAvailableRule
+            忽略那些短路等服务器，并选择并发数较低的服务器
+        （6）RandomRule
+            随机选择一个可用的服务器
+        （7）RetryRule
+            重试机制的选择逻辑
+    4、配置方式
+        （1）代码：
+            启动类Application中
+            @Bean
+            public IRule randomRule(){
+                return new RandomRule();
+            }
+        （2）代码：
+            @Configuration
+            public class MyRule {
+                @Bean
+                public IRule randomRule(){
+                    //替换为随机算法
+                    return new RandomRule();
+                }
+            }
+            启动类： @RibbonClient(name ="服务名" ,configuration = RibbonConfig.class)
+        （3）配置文件
+            userservice:
+              ribbon:
+                NFLoadBanlancerRuleClassName: com.netflix.loadbalancer.RandomRule #负载均衡规则
+    5、饥饿加载
+         Ribbon默认的是采用懒加载，即第一次访问时才会去创建LoadBalanceClient，请求时间会很长。而饥饿加载则会在项目启动时创建，降低第一次访问的耗时，通过下面配置开启饥饿加载。
+         ribbon:
+           eager-load:
+             enabled: true #开启饥饿加载
+             clients: userservice   #制定对userservice这个服务饥饿加载

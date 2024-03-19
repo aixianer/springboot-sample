@@ -1,0 +1,49 @@
+1、是什么
+    一个http请求调用的轻量级框架，是以Java接口注解的方式调用Http请求，而不用像Java中通过封装HTTP请求报文的方式直接调用。
+    Feign通过处理注解，将请求模板化，当实际调用的时候，传入参数，根据参数再应用到请求上，进而转化成真正的请求，
+    封装了Http调用流程，更符合面向接口化的编程习惯
+    Spring Cloud集成Feign并对其进行了增强，使Feign支持了Spring MVC注解；Feign默认集成了Ribbon，所以Fegin默认就实现了负载均衡的效果。
+2、原理
+    1、将feign接口的代理类扫描到Spring容器中：
+        @EnableFeignClients开启feign注解扫描：FeignClientsRegistrar.registerFeignClients()扫描被 @FeignClient标识的接口生成代理类，并把接口和代理类交给Spring的容器管理。
+    2、为接口的方法创建RequestTemplate
+        当consumer调用feign代理类时，代理类会调用SynchronousMethodHandler.invoke()创建RequestTemplate(url，参数)
+    3、发出请求
+        代理类会通过RequestTemplate创建Request，然后client(URLConnetct、HttpClient、OkHttp)使用Request发送请求
+实现过程：
+    开启Feign功能：
+        @EnableFeignClients
+    Feign的客户端：
+        @FeignClient(value = "provider-service",path="/order",contextId="？？")
+        public interface ConsumerService {
+            //String url = String.format("http://provider-service/user/findUserById/%s",id);
+            @RequestMapping("/user/findUserById/{id}")
+            User findUserById(@PathVariable("id") Integer id);
+
+        }
+Feign优化
+（1）请求压缩（gzip）
+        支持对请求和响应进行GZIP压缩，以减少通信过程中的性能损耗
+        feign:
+            compression:
+                request:
+                    enabled: true # 开启请求压缩
+                response:
+                    enabled: true # 开启响应压缩
+        触发压缩的大小下限
+        feign:
+            compression:
+                request:
+                    enabled: true # 开启请求压缩
+                    mime-types:	text/html,application/xml,application/json # 设置压缩的数据类型
+                    min-request-size: 2048 # 设置触发压缩的大小下限
+（2）开启feign日志
+（3）feign超时问题
+（4）http连接池
+其他
+    Spring Cloud的五大组件:
+        服务发现-Netflix Eureka
+        客服端负载均衡-Netflix Ribbon
+        断路器-Netflix Hystrix
+        服务网关-Netflix Zuul / gateway
+        分布式配置-Spring Cloud Config
